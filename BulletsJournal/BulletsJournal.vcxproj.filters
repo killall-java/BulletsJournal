@@ -36,6 +36,9 @@
     <ClInclude Include="CameraStream.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="getgun.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BulletsJournal.cpp">
@@ -48,6 +51,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="CameraStream.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="getgun.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -8,6 +8,8 @@
 #include "afxdialogex.h"
 #include "CameraStream.h"
 #include <atomic>
+#include "curl.h"
+#include "getgun.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -41,7 +43,7 @@ struct ChannelInfo{
 
 CameraStream camera1;
 
-std::atomic<bool> forcedReturn(false);
+//std::atomic<bool> forcedReturn(false);
 
 //Mat g_BGRImage;
 //int g_count = 0;
@@ -113,28 +115,7 @@ void CALLBACK decCBFun(long nPort, char* pBuf, long nSize, FRAME_INFO* pFrameInf
 	}
 };
 
-
-//实时视频码流数据获取 回调函数
-void CALLBACK realDataCallBack_V30(LONG lPlayHandle, DWORD dwDataType, BYTE *pBuffer, DWORD dwBufSize, void* pUser)
-{
-	if (dwDataType == NET_DVR_STREAMDATA)//码流数据
-	{
-		if (dwBufSize > 0 && ChannelInfo1.nPort != -1)
-		{
-			if (!PlayM4_InputData(ChannelInfo1.nPort, pBuffer, dwBufSize))
-			{
-				//std::cout << "fail input data" << std::endl;
-			}
-			else
-			{
-				//std::cout << "success input data" << std::endl;
-			}
-
-		}
-	}
-};
-
-
+// 回调相机视频流
 void CALLBACK g_RealDataCallBack_V30(LONG lRealHandle, DWORD dwDataType, BYTE *pBuffer, DWORD dwBufSize, void* dwUser)
 {
 	switch (dwDataType)
@@ -182,45 +163,151 @@ void CALLBACK g_RealDataCallBack_V30(LONG lRealHandle, DWORD dwDataType, BYTE *p
 	}
 }
 
-void popList() {
+static int OnCurlDebug(CURL *, curl_infotype itype, char* pData, size_t size, void*){
+	if (itype == CURLINFO_TEXT)
+	{
+		TRACE("[TEXT]%s\n", pData);
+	}
+	else if (itype == CURLINFO_HEADER_IN)
+	{
+		TRACE("[HEADER_IN]%s\n", pData);
+	}
+	else if (itype == CURLINFO_HEADER_OUT)
+	{
+		TRACE("[HEADER_OUT]%s\n", pData);
+	}
+	else if (itype == CURLINFO_DATA_IN)
+	{
+		TRACE("[DATA_IN]%s\n", pData);
+	}
+	else if (itype == CURLINFO_DATA_OUT)
+	{
+		TRACE("[DATA_OUT]%s\n", pData);
+	}
+	return 0;
+}
+
+bool postData(cv::Mat mat, std::string ip, int goal, int cnt) {
+	// https://blog.csdn.net/qq_32435729/article/details/77095903
+	if (mat.empty()) {
+		return false;
+	}
+
+	std::vector<uchar> data_encode;
+	try {
+		std::vector<int> param = std::vector<int>(2);
+		param[0] = CV_IMWRITE_JPEG_QUALITY;
+		param[1] = 95;
+		cv::imencode(".jpg", mat, data_encode, param);
+
+	}
+	catch (Exception& e) {
+		const char * s_ERROR = e.what();
+		std::string a(s_ERROR);
+		int c = 0;
+		c++;
+	}
+
+	long imgLength = (long)data_encode.size();
+	// 获取图片数据指针
+	unsigned char* imgPtr = &*data_encode.begin();
+
+
+	//struct curl_slist* headers = NULL;
+	//headers = curl_slist_append(headers, "Content-Type:multipart/form-data; charset=UTF-8");
+	//headers = curl_slist_append(headers, "Accept:text/html,text/plain,application/xhtml+xml,application/xml,application/json;q=0.9,*/*;q=0.8");
+	//headers = curl_slist_append(headers, "Accept-Language:zh-cn,zh;q=0.8,en-us;q=0.5,en;q=0.3");
+	//headers = curl_slist_append(headers, "Accept-Encoding:gzip, deflate");
+	//headers = curl_slist_append(headers, "User-Agent:Mozilla/5.0 (Windows NT 6.1; WOW64; rv:22.0) Gecko/20100101 Firefox/22.0");
+	//headers = curl_slist_append(headers, "Referer:http://minki.com/");
+
+	
+	//初始化easy interface，想使用easy interface的api函数就必须首先初始化easy interface
+	CURL *easy_handle = curl_easy_init();
+	//设置easy handle的属性和操作
+
+	std::string url = "http://"+ ip + ":80/app/upload.action";
+	curl_easy_setopt(easy_handle, CURLOPT_URL, url.c_str());
+	//curl_easy_setopt(easy_handle, CURLOPT_TIMEOUT, 3);
+	//curl_easy_setopt(easy_handle, CURLOPT_NOSIGNAL, 1);
+	//curl_easy_setopt(easy_handle, CURLOPT_CONNECTTIMEOUT, 3);
+	//curl_easy_setopt(easy_handle, CURLOPT_READFUNCTION, NULL);
+	//curl_easy_setopt(easy_handle, CURLOPT_VERBOSE, 1);
+	//curl_easy_setopt(easy_handle, CURLOPT_DEBUGFUNCTION, OnDebug);
+	//curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, headers);
+	struct curl_httppost* post = NULL;
+	struct curl_httppost* last = NULL;
+
+	srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
+
+	std::string cameraId = std::to_string(rand() % 20);
+
+	//std::string value = "{\"camaraId\":" + cameraId + ",\"scores\":" + std::to_string(cnt) + ",\"goal\":" + std::to_string(goal) + ",\"username\":\"JoyChou\"}";
+	std::string value = "{\"camaraId\":" + cameraId + ",\"score\":" + std::to_string(rand() % 100) + ",\"username\":\"JoyChou\"}";
+
+	std::string param = "param";
+	curl_formadd(&post, &last,
+		CURLFORM_COPYNAME, param.c_str(), //json字符串的参数名
+		CURLFORM_COPYCONTENTS, value.c_str(), //json字符串
+		CURLFORM_END
+		);
+	curl_formadd(&post, &last,
+		CURLFORM_COPYNAME, "image", //图片的参数名
+		CURLFORM_BUFFER, "image.jpg", //图片名称,这里随便起的,如果不传会出错
+		CURLFORM_BUFFERPTR, imgPtr, //图片存放的数组
+		CURLFORM_BUFFERLENGTH, imgLength, //存放图片数组长度
+		CURLFORM_CONTENTTYPE, "application/x-jpg", // application/x-jpg
+		CURLFORM_END);
+
+	curl_easy_setopt(easy_handle, CURLOPT_HTTPPOST, post);
+	CURLcode code = curl_easy_perform(easy_handle);//连接到远程主机，发送请求，并接收响应 
+
+	TRACE("############################################################ code: %d \n", code);
+	curl_easy_cleanup(easy_handle);//释放资源
+	
+	return true;
+}
+
+void popList(std::string ip) {
+	int i = 0;
+	int goal = 0;
+	int cnt = 0;
+	int* goalPrt = &goal;
+	int* cntPrt = &cnt;
+
 	while (ChannelInfo1.isPlayingCV){
-		ChannelInfo1.mutexLock.lock();
+		
 		if (ChannelInfo1.matQueque.size() > 0){
-
+			
 			TRACE("\n---------------------------------------------- 元素首部出队 BY OpenCV: %d \n", ChannelInfo1.matQueque.size());
-			// TODO 图像处理在这里调用
+			ChannelInfo1.mutexLock.lock();
 			Mat pop = ChannelInfo1.matQueque.front();
-			/*imshow("IPCamera1", pop);
-			waitKey(1);*/
+			//if (i % 3 == 0){
+			//	postData(pop, ip,1,3);
+			//	i++;
+			//} else if (i > 9){
+			//	i = 0;
+			//} else {
+			//	i++;
+			//}
+			
 			ChannelInfo1.matQueque.pop_front();
-				
+			ChannelInfo1.mutexLock.unlock();
+			// TODO 图像处理在这里调用
+			uploadRslt(pop, (char*)ip.data(), goalPrt, cntPrt);
+			// post到web服务器
+			postData(pop, ip, goal, cnt);
 			pop.~Mat();
-		}
-
-		ChannelInfo1.mutexLock.unlock();
-		srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
-		int RandomNumber = rand() % 10;//生成100以内的随机数
-		Sleep(50 + RandomNumber);
+		} else {
+			// 队列中没有图片则阻塞200ms，以免线程一直占用cpu资源
+			srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
+			int RandomNumber = rand() % 10;//生成100以内的随机数
+			Sleep(200 + RandomNumber);
+		}		
 	}
 	return;
 }
 
-void pushList(char *deviceIp, CameraStream camera) {
-	bool status = camera.start(g_RealDataCallBack_V30, decCBFun, std::ref(ChannelInfo1.nPort), ChannelInfo1.hPlayWnd, deviceIp);
-	
-	if (!status){
-		AfxMessageBox("连接失败，请联系管理员！");
-		return;
-	}
-	ChannelInfo1.isReady = status;
-	while (true){
-		if (forcedReturn){
-			return;
-		}
-		Sleep(3000);
-	}
-	TRACE(" ---------------------------------------------- Login successful \n");
-}
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
@@ -267,6 +354,7 @@ void CBulletsJournalDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_IPADDRESS1, m_deviceIp1);
+	DDX_Control(pDX, IDC_IPADDRESS6, m_WebServerIp);
 }
 
 BEGIN_MESSAGE_MAP(CBulletsJournalDlg, CDialogEx)
@@ -316,8 +404,18 @@ BOOL CBulletsJournalDlg::OnInitDialog()
 	// 初始化SDK
 	NET_DVR_Init();
 
+	//初始化libcurl通信库，想用libcurl库的函数就必须首先初始化libcurl
+	CURLcode code;
+	code = curl_global_init(CURL_GLOBAL_ALL);
+	if (CURLE_OK != code) {
+		TRACE("\n ---------------------------------------------- 初始化通信库失败 \n");
+		AfxMessageBox("初始化通信库失败，请联系管理员！");
+		return false;
+	}
+
 	// 设置默认IP
 	m_deviceIp1.SetAddress(192, 168, 1, 64);
+	m_WebServerIp.SetAddress(192, 168, 1, 5);
 
 	// 将opencv imshow绑定到MFC pictrue control控件
 	namedWindow("IPCamera", 0);
@@ -336,15 +434,23 @@ BOOL CBulletsJournalDlg::OnInitDialog()
 
 void CBulletsJournalDlg::OnSysCommand(UINT nID, LPARAM lParam)
 {
-	if ((nID & 0xFFF0) == IDM_ABOUTBOX)
-	{
+	if ((nID & 0xFFF0) == IDM_ABOUTBOX) {
 		CAboutDlg dlgAbout;
 		dlgAbout.DoModal();
 	}
-	else
-	{
-		CDialogEx::OnSysCommand(nID, lParam);
+
+	if (nID == SC_CLOSE){
+		if (AfxMessageBox("您确定要退出系统吗?", MB_OKCANCEL) == IDCANCEL){
+			return;
+		}
 	}
+	// 释放curllib通信库资源
+	curl_global_cleanup();
+	// 释放相机SDK资源
+	NET_DVR_Cleanup();
+
+	CDialogEx::OnSysCommand(nID, lParam);
+	
 }
 
 // 如果向对话框添加最小化按钮，则需要下面的代码
@@ -386,8 +492,6 @@ HCURSOR CBulletsJournalDlg::OnQueryDragIcon()
 
 void CBulletsJournalDlg::OnBnClickedLoginButton1()
 {
-	// TODO:  在此添加控件通知处理程序代码
-
 	CString capital;
 	GetDlgItem(IDC_LOGIN_BUTTON1)->GetWindowText(capital);
 	if (capital == TEXT("停止")){
@@ -398,7 +502,7 @@ void CBulletsJournalDlg::OnBnClickedLoginButton1()
 		}
 		ChannelInfo1.isReady = false;
 		ChannelInfo1.isRealPlaying = false;
-		Sleep(1500);
+		Sleep(1000);
 		GetDlgItem(IDC_LOGIN_BUTTON1)->SetWindowText("预览");
 		GetDlgItem(IDC_ONEKEY_BUTTON)->EnableWindow(TRUE);
 		return;
@@ -411,17 +515,16 @@ void CBulletsJournalDlg::OnBnClickedLoginButton1()
 		ChannelInfo1.matQueque.clear();
 	}
 
-	// 首次预览，需先 UpdateData 相机ip
-	if (!ChannelInfo1.isLogin){
-		UpdateData(TRUE);
-		DWORD dwDeviceIP;
-		CString csTemp;
-		m_deviceIp1.GetAddress(dwDeviceIP);
-		csTemp = ipToStr(dwDeviceIP);
-		sprintf_s(ChannelInfo1.deviceIp, 16, "%s", csTemp.GetBuffer(0));
-		UpdateData(false);
-	}
-
+	// 获取相机ip
+	UpdateData(TRUE);
+	DWORD dwDeviceIP;
+	CString csTemp;
+	m_deviceIp1.GetAddress(dwDeviceIP);
+	csTemp = ipToStr(dwDeviceIP);
+	sprintf_s(ChannelInfo1.deviceIp, 16, "%s", csTemp.GetBuffer(0));
+	UpdateData(false);
+	
+	// 连接摄像机
 	bool status = camera1.start(g_RealDataCallBack_V30, decCBFun, std::ref(ChannelInfo1.nPort), ChannelInfo1.hPlayWnd, ChannelInfo1.deviceIp);
 	if (!status){
 		AfxMessageBox("连接失败，请联系管理员！");
@@ -433,7 +536,7 @@ void CBulletsJournalDlg::OnBnClickedLoginButton1()
 
 	GetDlgItem(IDC_LOGIN_BUTTON1)->SetWindowText("停止");
 	
-
+	// 预览
 	while (ChannelInfo1.isReady){
 		ChannelInfo1.mutexLock.lock();
 		if (ChannelInfo1.matQueque.size() > 0){
@@ -452,20 +555,33 @@ void CBulletsJournalDlg::OnBnClickedLoginButton1()
 		ChannelInfo1.mutexLock.unlock();
 		srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
 		int RandomNumber = rand() % 10;//生成100以内的随机数
-		Sleep(50 + RandomNumber);
+		Sleep(200 + RandomNumber);
 	}
 	return;
 }
 
 void CBulletsJournalDlg::OnBnClickedOnekeyButton()
 {
-	// TODO:  在此添加控件通知处理程序代码
+	if (m_WebServerIp.IsBlank()){
+		AfxMessageBox("Web服务器IP不能为空!");
+		return;
+	}
+	// 获取web服务器ip
+	UpdateData(TRUE);
+	DWORD ip;
+	CString csTemp;
+	m_WebServerIp.GetAddress(ip);
+	
+	csTemp = ipToStr(ip);
+	std::string webServerIp = csTemp.GetBuffer();
+	UpdateData(false);
+	
 	CString capital;
 	GetDlgItem(IDC_ONEKEY_BUTTON)->GetWindowText(capital);
 	if (capital == TEXT("结束报靶")){
 		ChannelInfo1.isPlayingCV = false;
 		bool status = camera1.stop(std::ref(ChannelInfo1.nPort));
-		Sleep(1500);
+		Sleep(1000);
 		GetDlgItem(IDC_ONEKEY_BUTTON)->SetWindowText("开始报靶");
 		GetDlgItem(IDC_LOGIN_BUTTON1)->EnableWindow(TRUE);
 		return;
@@ -477,19 +593,20 @@ void CBulletsJournalDlg::OnBnClickedOnekeyButton()
 		// 首次预览，需先 UpdateData 相机ip
 		GetDlgItem(IDC_LOGIN_BUTTON1)->EnableWindow(FALSE);
 
-		if (!ChannelInfo1.isLogin){
-			UpdateData(TRUE);
-			DWORD dwDeviceIP;
-			CString csTemp;
-			m_deviceIp1.GetAddress(dwDeviceIP);
-			csTemp = ipToStr(dwDeviceIP);
-			sprintf_s(ChannelInfo1.deviceIp, 16, "%s", csTemp.GetBuffer(0));
-			UpdateData(false);
-		}
+		// 获取ip
+		UpdateData(TRUE);
+		DWORD dwDeviceIP;
+		CString csTemp;
+		m_deviceIp1.GetAddress(dwDeviceIP);
+		csTemp = ipToStr(dwDeviceIP);
+		sprintf_s(ChannelInfo1.deviceIp, 16, "%s", csTemp.GetBuffer(0));
+		UpdateData(false);
+		
 		ChannelInfo1.isPlayingCV = true;
 		bool status = camera1.start(g_RealDataCallBack_V30, decCBFun, std::ref(ChannelInfo1.nPort), ChannelInfo1.hPlayWnd, ChannelInfo1.deviceIp);
 		Sleep(500);
-		std::thread popListThread(popList);
+		// 开启图像处理线程
+		std::thread popListThread(popList, webServerIp);
 		ChannelInfo1.isRealPlaying = false;
 		GetDlgItem(IDC_ONEKEY_BUTTON)->SetWindowText("结束报靶");
 		GetDlgItem(IDC_LOGIN_BUTTON1)->EnableWindow(FALSE);
@@ -511,9 +628,10 @@ CString CBulletsJournalDlg::ipToStr(DWORD dwIP)
 	return strIP;
 }
 
-
 void CBulletsJournalDlg::OnBnClickedConfigButton1()
 {
-	// TODO:  在此添加控件通知处理程序代码
-	ShellExecute(NULL, _T("open"), _T("iexplore.exe"), _T("http://192.168.1.64/"), NULL, SW_SHOW);
+	ChannelInfo1.deviceIp;
+	ShellExecute(NULL, _T("open"), _T("iexplore.exe"), _T(ChannelInfo1.deviceIp), NULL, SW_SHOW);
+	
+	
 }

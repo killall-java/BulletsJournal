@@ -5,7 +5,9 @@
 #pragma once
 #include "afxwin.h"
 #include "afxcmn.h"
-
+#include <opencv2\core\core.hpp>
+#include <opencv2\highgui\highgui.hpp>
+#include <opencv2\imgproc\imgproc.hpp>
 
 // CBulletsJournalDlg ¶Ô»°¿ò
 class CBulletsJournalDlg : public CDialogEx
@@ -43,5 +45,6 @@ public:
 	CIPAddressCtrl m_deviceIp1;
 	afx_msg void OnBnClickedOnekeyButton();
 	afx_msg void OnBnClickedConfigButton1();
+	CIPAddressCtrl m_WebServerIp;
 };
 
