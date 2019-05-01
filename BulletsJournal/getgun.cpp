@@ -5,6 +5,7 @@ static map<string, Mat> firstImgs;   // 存储每个相机上一时刻的一幅图
 static map<string, pair<int, int> > scores;   // pair中第一个表示截至到当前打了多少枪，第二个表示当前是几环
 static map<string, vector<Point> > allguns;    // instore all the shot position of every camera
 static map<string, Circle_msg> firstImgMsgs;  // instore the first image circle info
+static map<string, Point>  currentPos;
 
 /*函数：求两点之间的距离
 输入：四个坐标信息x1、 y1、x2、y2
@@ -399,26 +400,31 @@ void calcGun(Mat src, char* camIp){
 								{
 									scores[sIp].second = 10;
 									scores[sIp].first++;
+									currentPos[sIp] = gunPos;
 								}
 								else if (el1 > 1.05 && el2 <= 1.05)
 								{
 									scores[sIp].second = 9;
 									scores[sIp].first++;
+									currentPos[sIp] = gunPos;
 								}
 								else if (el2 > 1.05 && el3 <= 1.05)
 								{
 									scores[sIp].second = 8;
 									scores[sIp].first++;
+									currentPos[sIp] = gunPos;
 								}
 								else if (el3 > 1.05 && el4 <= 1.05)
 								{
 									scores[sIp].second = 7;
 									scores[sIp].first++;
+									currentPos[sIp] = gunPos;
 								}
 								else if (el4 > 1.05 && el5 <= 1.2)
 								{
 									scores[sIp].second = 6;
 									scores[sIp].first++;
+									currentPos[sIp] = gunPos;
 								}
 							}
 						}
@@ -439,16 +445,22 @@ void calcGun(Mat src, char* camIp){
 	}
 }
 
-void uploadRslt(Mat src, std::string camIp, int* goal, int* cnt){
-	char* ip = (char*)camIp.data();
-	//calcGun(src, ip);
+void uploadRslt(Mat* src, char* camIp, int* goal, int* cnt){
+	calcGun(*src, camIp);
 
 	string s = camIp;
 	if (scores.count(s)){
 		pair<int, int> tmp = scores[s];
 		*cnt = tmp.first;
 		*goal = tmp.second;
+		// draw rec on the shot
+		Point p1, p2;
+		p1.x = currentPos[s].x - 10;
+		p1.y = currentPos[s].x - 10;
+		p2.x = currentPos[s].x + 10;
+		p2.y = currentPos[s].x + 10;
+		rectangle(*src, p1, p2, Scalar(255, 255, 255), 1, 8, 0);
 	}
 
-	ip = NULL;
+	//ip = NULL;
 }
