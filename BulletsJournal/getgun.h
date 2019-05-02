@@ -26,4 +26,4 @@ void CircleRecgnize(Mat img, Circle_msg *box_all);
 
 float calculElip(float a, float b, float cx, float cy, float x0, float y0);
 void calcGun(Mat src, char* camIp);
-void uploadRslt(Mat src, std::string camIp, int* goal, int* cnt);
+void uploadRslt(Mat* src, char* camIp, int* goal, int* cnt);

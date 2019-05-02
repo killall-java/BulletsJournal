@@ -294,7 +294,7 @@ void popList(std::string ip) {
 			ChannelInfo1.matQueque.pop_front();
 			ChannelInfo1.mutexLock.unlock();
 			// TODO 图像处理在这里调用
-			uploadRslt(pop, (char*)ip.data(), goalPrt, cntPrt);
+			uploadRslt(&pop, (char*)ip.data(), goalPrt, cntPrt);
 			// post到web服务器
 			postData(pop, ip, goal, cnt);
 			pop.~Mat();
