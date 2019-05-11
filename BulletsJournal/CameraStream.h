@@ -31,10 +31,11 @@ public:
 	LONG realPlayHandler = -1;
 	LONG Port = -1;
 	LONG lUserID = -1;
-	
+	bool isFirstPreview = true;
+
     //bool Login(const char* sDeviceAddress,const char* sUserName,const char* sPassword, WORD wPort);            //µÇÂ½£¨VS2017°æ±¾£©
-	bool stop(LONG &nPort);
-	bool start(void(CALLBACK *realDataCallBack_V30)(LONG lPlayHandle, DWORD dwDataType, BYTE *pBuffer, DWORD dwBufSize, void* pUser), void(CALLBACK *decCBFun)(long nPort, char* pBuf, long nSize, FRAME_INFO* pFrameInfo, long nUser, long nReserved2), LONG &nPort, HWND hPlayWnd, char* sDeviceAddress);                  //ÏÔÊ¾Í¼Ïñ
+	int stop(LONG &nPort);
+	int start(void(CALLBACK *realDataCallBack_V30)(LONG lPlayHandle, DWORD dwDataType, BYTE *pBuffer, DWORD dwBufSize, void* pUser), LONG &nPort, HWND hPlayWnd, char* sDeviceAddress);                  //ÏÔÊ¾Í¼Ïñ
 	
 
 private:
