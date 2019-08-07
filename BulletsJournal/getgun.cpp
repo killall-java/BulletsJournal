@@ -1,4 +1,4 @@
-
+#include "stdafx.h"
 #include "getgun.h"
 
 
@@ -546,7 +546,9 @@ Mat cameraDevice::getRoiEdge(Mat& thirdImg, Circle_msg& box_msg3, int offsetx, i
 		//合并梯度
 		addWeighted(abs_grad_x, 2, abs_grad_y, 2, 0, singleImgRoiSobel);
 
-		cv::cvtColor(singleImgRoiSobel, singleImgRoiSobel, CV_BGR2GRAY);
+		if (singleImgRoiSobel.channels() != 1 || singleImgRoiSobel.dims != 2){
+			cv::cvtColor(singleImgRoiSobel, singleImgRoiSobel, CV_BGR2GRAY);
+		}
 		threshold(singleImgRoiSobel, singleImgRoiSobel, 10, 255, CV_THRESH_BINARY | CV_THRESH_OTSU);
 
 		//		Mat singleImgRoiL;
@@ -614,8 +616,9 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 	//Mat elementForErode = getStructuringElement(MORPH_RECT, Size(erodeSize, erodeSize), Point(0, 0));
 	//erode(roi, roi, elementForErode);
 */
-
-	cv::cvtColor(diffRoi, diffRoi, CV_BGR2GRAY);
+	if (diffRoi.channels() != 1 || diffRoi.dims != 2){
+		cv::cvtColor(diffRoi, diffRoi, CV_BGR2GRAY);
+	}
 	// 不能用OTSU
 	CvScalar mean, std_dev;
 	IplImage ipl;

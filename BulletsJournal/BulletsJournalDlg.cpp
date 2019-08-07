@@ -53,11 +53,11 @@ struct ChannelInfo{
 	// 当前状态
 	string status = "";
 
-	int samplingCounter = 0;
+	int samplingCounter = 1;
 
-	int quequePushInterval = 1;
+	int quequePushInterval = 3;
 
-	int COUNTER_MAX = 2;
+	int COUNTER_MAX = 10;
 
 } ChannelInfo1, ChannelInfo2, ChannelInfo3, ChannelInfo4, ChannelInfo5;
 
@@ -191,46 +191,22 @@ void CALLBACK g_decCBFun_1(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 {
 	// 10 秒
 	if (ChannelInfo1.samplingCounter > ChannelInfo1.COUNTER_MAX){
-		ChannelInfo1.samplingCounter = 0;
-
-	}
-	else if (ChannelInfo1.samplingCounter % ChannelInfo1.quequePushInterval == 0){
+		ChannelInfo1.samplingCounter = 1;
+	} else if (ChannelInfo1.samplingCounter % ChannelInfo1.quequePushInterval == 0){
 		ChannelInfo1.samplingCounter++;
 		if (pFrameInfo->nType == T_YV12)
 		{
-			/*if (g_count == 0){
-			g_start = clock();
-			cout << "g_start = clock()" << endl;
-			}*/
-			//std::cout << "the frame infomation is T_YV12" << std::endl;
-			/*if (g_BGRImage.empty())
-			{
-			g_BGRImage.create(pFrameInfo->nHeight, pFrameInfo->nWidth, CV_8UC3);
-			}*/
-
 			Mat YUVImage(pFrameInfo->nHeight, pFrameInfo->nWidth, CV_8UC1, (unsigned char*)pBuf);
 
-			////cvtColor(YUVImage, g_BGRImage, COLOR_YUV2BGR_YV12);
 			Rect rect(600, 200, 1000, 800);
 			Mat ROI = YUVImage(rect);
 
 			ChannelInfo1.mutexLock.lock();
 			ChannelInfo1.matQueque.push_back(ROI.clone());
 			ChannelInfo1.mutexLock.unlock();
-			//srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
-			//int RandomNumber = rand() % 10;//生成100以内的随机数
-			//Sleep(50 + RandomNumber);
-			///*Mat dst;
-			//cvtColor(ROI, dst, CV_BGR2GRAY);
-			//namedWindow("FHUT", WINDOW_AUTOSIZE);
-			//imshow("IPCamera1", ROI);
-			//waitKey(1);
-			TRACE("\n ----------------------------------------------通道【一】入队：%d \n", ChannelInfo1.matQueque.size());
-			//char image_name[25];
-			//sprintf(image_name, "%s%d%s", "", start, ".jpg");//保存的图片名 
-			//imwrite(image_name, ROI); //保存一帧图片 
-			//Sleep(1 * 1000);
-			//delete[] image_name;
+
+			TRACE("----------------------------------------------通道【一】入队，队中数量：：%d \n", ChannelInfo1.matQueque.size());
+
 			if (ChannelInfo1.enableRealPlay){
 				imshow("IPCamera1", ROI);
 			}
@@ -238,16 +214,6 @@ void CALLBACK g_decCBFun_1(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 			ROI.~Mat();
 		}
 
-		/*if (g_count > 24){
-		g_count = 1;
-		g_start = clock();
-
-		}else if (g_count==24){
-		g_ends = clock();
-		cout << "---------------- every 25 frames time escape: " << (double)(g_ends - g_start) / CLOCKS_PER_SEC << endl;
-
-		}
-		g_count++;*/
 	} else{
 		ChannelInfo1.samplingCounter++;
 	}
@@ -313,7 +279,7 @@ void g_popList_1(std::string ip, ChannelInfo &channelInfo) {
 
 		if (channelInfo.matQueque.size() > 0){
 
-			TRACE("\n---------------------------------------------- 通道【一】元素首部出队 BY OpenCV: %d \n", channelInfo.matQueque.size());
+			TRACE("\n---------------------------------------------- 通道【一】元素首部出队，队中剩余: %d \n", channelInfo.matQueque.size());
 			channelInfo.mutexLock.lock();
 			Mat pop = channelInfo.matQueque.front();
 
@@ -322,11 +288,11 @@ void g_popList_1(std::string ip, ChannelInfo &channelInfo) {
 			// TODO 图像处理在这里调用
 			//uploadRslt(&pop, (char*)ip.data(), goalPrt, cntPrt);
 			// post到web服务器
-			g_postData(pop, ip, goal, cnt, channelInfo.deviceIp);
+			if (goal > 0){
+				g_postData(pop, ip, goal, cnt, channelInfo.deviceIp);
+			}
 			pop.~Mat();
-			srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
-			int RandomNumber = rand() % 10;//生成100以内的随机数
-			Sleep(200 + RandomNumber);
+
 		}
 		else {
 			// 队列中没有图片则阻塞200ms，以免线程一直占用cpu资源
@@ -343,10 +309,8 @@ void CALLBACK g_decCBFun_2(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 {
 	// 10 秒
 	if (ChannelInfo2.samplingCounter > ChannelInfo2.COUNTER_MAX){
-		ChannelInfo2.samplingCounter = 0;
-
-	}
-	else if (ChannelInfo2.samplingCounter % ChannelInfo2.quequePushInterval == 0){
+		ChannelInfo2.samplingCounter = 1;
+	} else if (ChannelInfo2.samplingCounter % ChannelInfo2.quequePushInterval == 0){
 		ChannelInfo2.samplingCounter++;
 		if (pFrameInfo->nType == T_YV12)
 		{
@@ -377,7 +341,7 @@ void CALLBACK g_decCBFun_2(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 			//namedWindow("FHUT", WINDOW_AUTOSIZE);
 			//imshow("IPCamera1", ROI);
 			//waitKey(1);
-			TRACE("\n ----------------------------------------------通道【二】入队：%d \n", ChannelInfo2.matQueque.size());
+			TRACE("----------------------------------------------通道【二】入队，队中数量：：%d \n", ChannelInfo2.matQueque.size());
 			//char image_name[25];
 			//sprintf(image_name, "%s%d%s", "", start, ".jpg");//保存的图片名 
 			//imwrite(image_name, ROI); //保存一帧图片 
@@ -465,20 +429,24 @@ void g_popList_2(std::string ip, ChannelInfo &channelInfo) {
 
 		if (channelInfo.matQueque.size() > 0){
 
-			TRACE("\n---------------------------------------------- 通道【二】元素首部出队 BY OpenCV: %d \n", channelInfo.matQueque.size());
+			TRACE("\n 通道【二】元素出队，队中剩余: %d \n", channelInfo.matQueque.size());
 			channelInfo.mutexLock.lock();
 			Mat pop = channelInfo.matQueque.front();
-
 			channelInfo.matQueque.pop_front();
 			channelInfo.mutexLock.unlock();
 			// TODO 图像处理在这里调用
-			//uploadRslt(&pop, (char*)ip.data(), goalPrt, cntPrt);
+			g_start = clock();
+			uploadRslt(&pop, (char*)ip.data(), goalPrt, cntPrt);
+			g_ends = clock();
+			TRACE("---------------------------------------------------------------------- uploadRslt time escape: %f\n", (double)(g_ends - g_start) / CLOCKS_PER_SEC );
 			// post到web服务器
-			g_postData(pop, ip, goal, cnt, channelInfo.deviceIp);
+			if (goal > 0){
+				g_postData(pop, ip, goal, cnt, channelInfo.deviceIp);
+			}
 			pop.~Mat();
-			srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
-			int RandomNumber = rand() % 10;//生成100以内的随机数
-			Sleep(200 + RandomNumber);
+			//srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
+			//int RandomNumber = rand() % 10;//生成100以内的随机数
+			//Sleep(200 + RandomNumber);
 		}
 		else {
 			// 队列中没有图片则阻塞200ms，以免线程一直占用cpu资源
@@ -495,64 +463,28 @@ void CALLBACK g_decCBFun_3(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 {
 	// 10 秒
 	if (ChannelInfo3.samplingCounter > ChannelInfo3.COUNTER_MAX){
-		ChannelInfo3.samplingCounter = 0;
-
-	}
-	else if (ChannelInfo3.samplingCounter % ChannelInfo3.quequePushInterval == 0){
+		ChannelInfo3.samplingCounter = 1;
+	} else if (ChannelInfo3.samplingCounter % ChannelInfo3.quequePushInterval == 0){
 		ChannelInfo3.samplingCounter++;
 		if (pFrameInfo->nType == T_YV12)
 		{
-			/*if (g_count == 0){
-			g_start = clock();
-			cout << "g_start = clock()" << endl;
-			}*/
-			//std::cout << "the frame infomation is T_YV12" << std::endl;
-			/*if (g_BGRImage.empty())
-			{
-			g_BGRImage.create(pFrameInfo->nHeight, pFrameInfo->nWidth, CV_8UC3);
-			}*/
-
 			Mat YUVImage(pFrameInfo->nHeight, pFrameInfo->nWidth, CV_8UC1, (unsigned char*)pBuf);
 
-			////cvtColor(YUVImage, g_BGRImage, COLOR_YUV2BGR_YV12);
 			Rect rect(600, 200, 1000, 800);
 			Mat ROI = YUVImage(rect);
 
 			ChannelInfo3.mutexLock.lock();
 			ChannelInfo3.matQueque.push_back(ROI.clone());
 			ChannelInfo3.mutexLock.unlock();
-			//srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
-			//int RandomNumber = rand() % 10;//生成100以内的随机数
-			//Sleep(50 + RandomNumber);
-			///*Mat dst;
-			//cvtColor(ROI, dst, CV_BGR2GRAY);
-			//namedWindow("FHUT", WINDOW_AUTOSIZE);
-			//imshow("IPCamera3", ROI);
-			//waitKey(1);
+			
 			if (ChannelInfo3.enableRealPlay){
 				imshow("IPCamera3", ROI);
 			}
-			TRACE("\n ----------------------------------------------通道【三】入队：%d \n", ChannelInfo3.matQueque.size());
-			//char image_name[25];
-			//sprintf(image_name, "%s%d%s", "", start, ".jpg");//保存的图片名 
-			//imwrite(image_name, ROI); //保存一帧图片 
-			//Sleep(1 * 1000);
-			//delete[] image_name;
-
+			TRACE("----------------------------------------------通道【三】入队，队中数量：：%d \n", ChannelInfo3.matQueque.size());
 			YUVImage.~Mat();
 			ROI.~Mat();
 		}
 
-		/*if (g_count > 24){
-		g_count = 1;
-		g_start = clock();
-
-		}else if (g_count==24){
-		g_ends = clock();
-		cout << "---------------- every 25 frames time escape: " << (double)(g_ends - g_start) / CLOCKS_PER_SEC << endl;
-
-		}
-		g_count++;*/
 	}
 	else{
 		ChannelInfo3.samplingCounter++;
@@ -619,7 +551,7 @@ void g_popList_3(std::string ip, ChannelInfo &channelInfo) {
 
 		if (channelInfo.matQueque.size() > 0){
 
-			TRACE("\n---------------------------------------------- 通道【三】元素首部出队 BY OpenCV: %d \n", channelInfo.matQueque.size());
+			TRACE("\n---------------------------------------------- 通道【三】元素出队，队中剩余: %d \n", channelInfo.matQueque.size());
 			channelInfo.mutexLock.lock();
 			Mat pop = channelInfo.matQueque.front();
 			channelInfo.matQueque.pop_front();
@@ -627,11 +559,12 @@ void g_popList_3(std::string ip, ChannelInfo &channelInfo) {
 			// TODO 图像处理在这里调用
 			//uploadRslt(&pop, (char*)ip.data(), goalPrt, cntPrt);
 			// post到web服务器
-			g_postData(pop, ip, goal, cnt, channelInfo.deviceIp);
+			if (goal > 0){
+				g_postData(pop, ip, goal, cnt, channelInfo.deviceIp);
+			}
+			
 			pop.~Mat();
-			srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
-			int RandomNumber = rand() % 10;//生成100以内的随机数
-			Sleep(200 + RandomNumber);
+
 		}
 		else {
 			// 队列中没有图片则阻塞200ms，以免线程一直占用cpu资源
@@ -647,64 +580,28 @@ void CALLBACK g_decCBFun_4(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 {
 	// 10 秒
 	if (ChannelInfo4.samplingCounter > ChannelInfo4.COUNTER_MAX){
-		ChannelInfo4.samplingCounter = 0;
-
-	}
-	else if (ChannelInfo4.samplingCounter % ChannelInfo4.quequePushInterval == 0){
+		ChannelInfo4.samplingCounter = 1;
+	} else if (ChannelInfo4.samplingCounter % ChannelInfo4.quequePushInterval == 0){
 		ChannelInfo4.samplingCounter++;
 		if (pFrameInfo->nType == T_YV12)
 		{
-			/*if (g_count == 0){
-			g_start = clock();
-			cout << "g_start = clock()" << endl;
-			}*/
-			//std::cout << "the frame infomation is T_YV12" << std::endl;
-			/*if (g_BGRImage.empty())
-			{
-			g_BGRImage.create(pFrameInfo->nHeight, pFrameInfo->nWidth, CV_8UC3);
-			}*/
-
 			Mat YUVImage(pFrameInfo->nHeight, pFrameInfo->nWidth, CV_8UC1, (unsigned char*)pBuf);
 
-			////cvtColor(YUVImage, g_BGRImage, COLOR_YUV2BGR_YV12);
 			Rect rect(600, 200, 1000, 800);
 			Mat ROI = YUVImage(rect);
 
 			ChannelInfo4.mutexLock.lock();
 			ChannelInfo4.matQueque.push_back(ROI.clone());
 			ChannelInfo4.mutexLock.unlock();
-			//srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
-			//int RandomNumber = rand() % 10;//生成100以内的随机数
-			//Sleep(50 + RandomNumber);
-			///*Mat dst;
-			//cvtColor(ROI, dst, CV_BGR2GRAY);
-			//namedWindow("FHUT", WINDOW_AUTOSIZE);
-			//imshow("IPCamera4", ROI);
-			//waitKey(1);
+
 			if (ChannelInfo4.enableRealPlay){
 				imshow("IPCamera4", ROI);
 			}
-			TRACE("\n ----------------------------------------------通道【四】入队：%d \n", ChannelInfo4.matQueque.size());
-			//char image_name[25];
-			//sprintf(image_name, "%s%d%s", "", start, ".jpg");//保存的图片名 
-			//imwrite(image_name, ROI); //保存一帧图片 
-			//Sleep(1 * 1000);
-			//delete[] image_name;
+			TRACE("----------------------------------------------通道【四】入队，队中数量：%d \n", ChannelInfo4.matQueque.size());
 
 			YUVImage.~Mat();
 			ROI.~Mat();
 		}
-
-		/*if (g_count > 24){
-		g_count = 1;
-		g_start = clock();
-
-		}else if (g_count==24){
-		g_ends = clock();
-		cout << "---------------- every 25 frames time escape: " << (double)(g_ends - g_start) / CLOCKS_PER_SEC << endl;
-
-		}
-		g_count++;*/
 	}
 	else{
 		ChannelInfo4.samplingCounter++;
@@ -771,7 +668,7 @@ void g_popList_4(std::string ip, ChannelInfo &channelInfo) {
 
 		if (channelInfo.matQueque.size() > 0){
 
-			TRACE("\n---------------------------------------------- 通道【四】元素首部出队 BY OpenCV: %d \n", channelInfo.matQueque.size());
+			TRACE("\n---------------------------------------------- 通道【四】元素首部出队，队中剩余: %d \n", channelInfo.matQueque.size());
 			channelInfo.mutexLock.lock();
 			Mat pop = channelInfo.matQueque.front();
 
@@ -780,11 +677,11 @@ void g_popList_4(std::string ip, ChannelInfo &channelInfo) {
 			// TODO 图像处理在这里调用
 			//uploadRslt(&pop, (char*)ip.data(), goalPrt, cntPrt);
 			// post到web服务器
-			g_postData(pop, ip, goal, cnt, channelInfo.deviceIp);
+			if (goal > 0){
+				g_postData(pop, ip, goal, cnt, channelInfo.deviceIp);
+			}
 			pop.~Mat();
-			srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
-			int RandomNumber = rand() % 10;//生成100以内的随机数
-			Sleep(200 + RandomNumber);
+
 		}
 		else {
 			// 队列中没有图片则阻塞200ms，以免线程一直占用cpu资源
@@ -801,64 +698,29 @@ void CALLBACK g_decCBFun_5(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 {
 	// 10 秒
 	if (ChannelInfo5.samplingCounter > ChannelInfo5.COUNTER_MAX){
-		ChannelInfo5.samplingCounter = 0;
-
-	}
-	else if (ChannelInfo5.samplingCounter % ChannelInfo5.quequePushInterval == 0){
+		ChannelInfo5.samplingCounter = 1;
+	} else if (ChannelInfo5.samplingCounter % ChannelInfo5.quequePushInterval == 0){
 		ChannelInfo5.samplingCounter++;
 		if (pFrameInfo->nType == T_YV12)
 		{
-			/*if (g_count == 0){
-			g_start = clock();
-			cout << "g_start = clock()" << endl;
-			}*/
-			//std::cout << "the frame infomation is T_YV12" << std::endl;
-			/*if (g_BGRImage.empty())
-			{
-			g_BGRImage.create(pFrameInfo->nHeight, pFrameInfo->nWidth, CV_8UC3);
-			}*/
 
 			Mat YUVImage(pFrameInfo->nHeight, pFrameInfo->nWidth, CV_8UC1, (unsigned char*)pBuf);
 
-			////cvtColor(YUVImage, g_BGRImage, COLOR_YUV2BGR_YV12);
 			Rect rect(600, 200, 1000, 800);
 			Mat ROI = YUVImage(rect);
 
 			ChannelInfo5.mutexLock.lock();
 			ChannelInfo5.matQueque.push_back(ROI.clone());
 			ChannelInfo5.mutexLock.unlock();
-			//srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
-			//int RandomNumber = rand() % 10;//生成100以内的随机数
-			//Sleep(50 + RandomNumber);
-			///*Mat dst;
-			//cvtColor(ROI, dst, CV_BGR2GRAY);
-			//namedWindow("FHUT", WINDOW_AUTOSIZE);
-			//imshow("IPCamera5", ROI);
-			//waitKey(1);
+			
 			if (ChannelInfo5.enableRealPlay){
 				imshow("IPCamera5", ROI);
 			}
-			TRACE("\n ----------------------------------------------通道【五】入队：%d \n", ChannelInfo5.matQueque.size());
-			//char image_name[25];
-			//sprintf(image_name, "%s%d%s", "", start, ".jpg");//保存的图片名 
-			//imwrite(image_name, ROI); //保存一帧图片 
-			//Sleep(1 * 1000);
-			//delete[] image_name;
+			TRACE("----------------------------------------------通道【五】入队，队中数量：：%d \n", ChannelInfo5.matQueque.size());
 
 			YUVImage.~Mat();
 			ROI.~Mat();
 		}
-
-		/*if (g_count > 24){
-		g_count = 1;
-		g_start = clock();
-
-		}else if (g_count==24){
-		g_ends = clock();
-		cout << "---------------- every 25 frames time escape: " << (double)(g_ends - g_start) / CLOCKS_PER_SEC << endl;
-
-		}
-		g_count++;*/
 	}
 	else{
 		ChannelInfo5.samplingCounter++;
@@ -925,7 +787,7 @@ void g_popList_5(std::string ip, ChannelInfo &channelInfo) {
 
 		if (channelInfo.matQueque.size() > 0){
 
-			TRACE("\n---------------------------------------------- 通道【五】元素首部出队 BY OpenCV: %d \n", channelInfo.matQueque.size());
+			TRACE("\n---------------------------------------------- 通道【五】元素首部出队，队中剩余: %d \n", channelInfo.matQueque.size());
 			channelInfo.mutexLock.lock();
 			Mat pop = channelInfo.matQueque.front();
 
@@ -934,11 +796,11 @@ void g_popList_5(std::string ip, ChannelInfo &channelInfo) {
 			// TODO 图像处理在这里调用
 			//uploadRslt(&pop, (char*)ip.data(), goalPrt, cntPrt);
 			// post到web服务器
-			g_postData(pop, ip, goal, cnt, channelInfo.deviceIp);
+			if (goal > 0){
+				g_postData(pop, ip, goal, cnt, channelInfo.deviceIp);
+			}
 			pop.~Mat();
-			srand((unsigned)time(NULL));//为rand()函数生成不同的随机种子
-			int RandomNumber = rand() % 10;//生成100以内的随机数
-			Sleep(200 + RandomNumber);
+
 		}
 		else {
 			// 队列中没有图片则阻塞200ms，以免线程一直占用cpu资源
@@ -1101,7 +963,7 @@ BOOL CBulletsJournalDlg::OnInitDialog()
 	m_deviceIp3.SetAddress(192, 168, 1, 101);
 	m_deviceIp4.SetAddress(192, 168, 1, 102);
 	m_deviceIp5.SetAddress(192, 168, 1, 64);
-	m_WebServerIp.SetAddress(192, 168, 1, 2);
+	m_WebServerIp.SetAddress(192, 168, 1, 3);
 
 	// 将opencv imshow绑定到MFC pictrue control控件
 	namedWindow("IPCamera1", 0);
