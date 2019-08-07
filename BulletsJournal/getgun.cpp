@@ -1050,8 +1050,11 @@ void cameraDevice::calcGun(Mat src, char* camIp)
 		if (offsety < 0)
 			offsety = 0;
 		roiw = int(box_msg3.box1.size.width * 6);
+		if ((offsetx + roiw) > thirdImg.size().width)
+			roiw = thirdImg.size().width - offsetx - 1;
 		roih = int(box_msg3.box1.size.height * 6);
-
+		if ((offsety +roih ) > thirdImg.size().height)
+			roih = thirdImg.size().height - offsety - 1;
 		// 分别得到 图像的diff, canny edge 的diff, sobel edge 的diff
 		diffimgRoi = getDiffImg(thirdImg, firstImg, box_msg3, offsetx, offsety, roiw, roih);
 		vector<Rect> diffRoiFiltered;
