@@ -1,0 +1,2 @@
+logEnable=0
+LogIntermedia=0

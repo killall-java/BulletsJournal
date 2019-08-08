@@ -491,7 +491,6 @@ cameraDevice::cameraDevice()
 	setDefctParam();
 	logEnable = false;
 	setGlobalParam();
-
 }
 
 
@@ -589,6 +588,15 @@ Mat cameraDevice::getDiffImg(Mat& thirdImg, Mat& firstImg, Circle_msg& box_msg3,
 	waitKey();
 	destroyWindow("diffRoi");
 	*/
+
+	if (logEnable && LogIntermedia == 2)
+	{
+		string logPath = camLogger.getLogPath();
+		string diffimgp = logPath + to_string(camLogger.getImgId())  + "\\diffRoiImg.jpg";
+
+		imwrite(diffimgp, diffRoi);
+	}
+
 	return diffRoi;
 }
 
@@ -632,6 +640,14 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 	erode(dst, dst, elementForErode);
 	Mat elementForDilate = getStructuringElement(MORPH_RECT, Size(3, 3), Point(0, 0));
 	dilate(dst, dst, elementForDilate);
+
+	if (logEnable && LogIntermedia == 2)
+	{
+		string logPath = camLogger.getLogPath();
+		string thresholdimg = logPath + to_string(camLogger.getImgId()) + "\\threshold.jpg";
+		imwrite(thresholdimg, dst);
+	}
+
 	/*
 	namedWindow("diffRoithrd", 0);
 	cvResizeWindow("diffRoithrd", 600, 500);
@@ -652,13 +668,48 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 	Mat firstRoiCanny, firstRoiSobel;
 	Mat thirdRoiCanny, thirdRoiSobel;
 	firstRoiCanny = getRoiEdge(firstImg, box_msg3, offsetx, offsety, roiw, roih, 0);
-	firstRoiSobel = getRoiEdge(firstImg, box_msg3, offsetx, offsety, roiw, roih, 1);
-	thirdRoiCanny = getRoiEdge(thirdImg, box_msg3, offsetx, offsety, roiw, roih, 0);
-	thirdRoiSobel = getRoiEdge(thirdImg, box_msg3, offsetx, offsety, roiw, roih, 1);
+	if (logEnable && LogIntermedia == 2)
+	{
+		string logPath = camLogger.getLogPath();
+		string firstRoiCannyP = logPath + to_string(camLogger.getImgId()) + "\\firstRoiCanny.jpg";
+		imwrite(firstRoiCannyP, firstRoiCanny);
+	}
 
+	firstRoiSobel = getRoiEdge(firstImg, box_msg3, offsetx, offsety, roiw, roih, 1);
+	if (logEnable && LogIntermedia == 2)
+	{
+		string logPath = camLogger.getLogPath();
+		string firstRoiSobelP = logPath + to_string(camLogger.getImgId()) + "\\firstRoiSobel.jpg";
+		imwrite(firstRoiSobelP, firstRoiSobel);
+	}
+	thirdRoiCanny = getRoiEdge(thirdImg, box_msg3, offsetx, offsety, roiw, roih, 0);
+	if (logEnable && LogIntermedia == 2)
+	{
+		string logPath = camLogger.getLogPath();
+		string thirdRoiCannyP = logPath + to_string(camLogger.getImgId()) + "\\thirdRoiCanny.jpg";
+		imwrite(thirdRoiCannyP, thirdRoiCanny);
+	}
+	thirdRoiSobel = getRoiEdge(thirdImg, box_msg3, offsetx, offsety, roiw, roih, 1);
+	if (logEnable && LogIntermedia == 2)
+	{
+		string logPath = camLogger.getLogPath();
+		string thirdRoiSobelP = logPath + to_string(camLogger.getImgId()) + "\\thirdRoiSobel.jpg";
+		imwrite(thirdRoiSobelP, thirdRoiSobel);
+	}
 	Mat thirdImgRoi = thirdImg(Rect(offsetx, offsety, roiw, roih)).clone();
+	if (logEnable && LogIntermedia == 2)
+	{
+		string logPath = camLogger.getLogPath();
+		string thirdImgRoiP = logPath + to_string(camLogger.getImgId()) + "\\thirdImgRoi.jpg";
+		imwrite(thirdImgRoiP, thirdImgRoi);
+	}
 	Mat firstImgRoi = firstImg(Rect(offsetx, offsety, roiw, roih)).clone();
-	Mat drawT = thirdImg(Rect(offsetx, offsety, roiw, roih)).clone();
+	if (logEnable && LogIntermedia == 2)
+	{
+		string logPath = camLogger.getLogPath();
+		string firstImgRoiP = logPath + to_string(camLogger.getImgId()) + "\\firstImgRoi.jpg";
+		imwrite(firstImgRoiP, firstImgRoi);
+	}
 	vector<Rect> allHole;
 
 	vector<Rect> gunTemp;
@@ -676,7 +727,7 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 			boxT.x + boxT.width + (int)(box_msg3.box1.size.width / 2) > roiw ||
 			boxT.y + boxT.height + (int)(box_msg3.box1.size.height / 2) > roih) // 
 		{
-			if (logEnable)
+			if (logEnable && LogIntermedia == 2)
 			{
 				Mat mm = dst(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
 				mm = { Scalar(0,0,0) };
@@ -826,7 +877,7 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 				}
 				else
 				{
-					if (logEnable)
+					if (logEnable && LogIntermedia == 2)
 					{
 						Mat mm = dst(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
 						mm = { Scalar(0,0,0) };
@@ -836,7 +887,7 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 			}
 		}
 		else {
-			if (logEnable)
+			if (logEnable && LogIntermedia == 2)
 			{
 				Mat mm = dst(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
 				mm = { Scalar(0,0,0) };
@@ -850,6 +901,14 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 	waitKey();
 	destroyWindow("final");
 	*/
+
+	if (logEnable && LogIntermedia == 2)
+	{
+		string logPath = camLogger.getLogPath();
+		string finalFilteredImg = logPath + to_string(camLogger.getImgId()) + "\\finalFilteredImg.jpg";
+		imwrite(finalFilteredImg, dst);
+	}
+
 	return allHole;
 }
 
@@ -941,19 +1000,6 @@ void cameraDevice::judgePos(Mat& roi, Point& gunPos, map<int, struct elipParam>&
 		score.second = 0;
 	}
 
-	if (logEnable)
-	{
-		string logPath = camLogger.getLogPath();
-		string diffimgp = logPath + "\\hole_pos.jpg";
-		CvPoint pt1;
-		CvPoint pt2;
-		pt1.x = gunPos.x - 10; pt1.y = gunPos.y - 10;
-		pt2.x = gunPos.x + 10; pt2.y = gunPos.y + 10;
-
-		cvRectangle(&roi, pt1, pt2, Scalar(255, 0, 255));
-		imwrite(diffimgp, roi);
-	}
-	
 }
 
 void cameraDevice::calcElip(map<int, struct elipParam>& fiveElip, Circle_msg& box_msg3)
@@ -994,6 +1040,17 @@ void cameraDevice::calcElip(map<int, struct elipParam>& fiveElip, Circle_msg& bo
 
 void cameraDevice::calcGun(Mat src, char* camIp)
 {
+	if (logEnable)
+	{
+		camLogger.setImgId();
+		if (LogIntermedia == 1 || LogIntermedia == 2)
+		{
+			string logPath = camLogger.getLogPath();
+			string inputimg = logPath + to_string(camLogger.getImgId()) + "\\inputImg" + to_string(camLogger.getImgId()) + ".jpg";
+			imwrite(inputimg, src);
+		}
+	}
+
 	struct defctParam defctPrm = getDefctParam();
 	Mat firstImg;
 	Mat thirdImg;
@@ -1009,6 +1066,28 @@ void cameraDevice::calcGun(Mat src, char* camIp)
 	initCirclMsg(box_msg1);
 	thirdImg = src;  // 先把这幅图拿出来求圆形
 	Circle_recognize(thirdImg, box_msg3);
+	if (logEnable && LogIntermedia == 2)
+	{
+		string circleInfo;
+		circleInfo.append("find circle status = ").append(to_string(box_msg3.flag));
+		camLogger.doLog(circleInfo);
+		// save image
+		if (box_msg3.flag)
+		{
+			Mat dstimg = thirdImg.clone();
+			int thickness = 2;
+			int lineType = 8;
+			ellipse(dstimg, box_msg3.box1.center, box_msg3.box1.size, box_msg3.box1.angle, 0, 360, Scalar(255, 129, 0),	thickness, lineType);
+			ellipse(dstimg, box_msg3.box2.center, box_msg3.box2.size, box_msg3.box2.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
+			ellipse(dstimg, box_msg3.box3.center, box_msg3.box3.size, box_msg3.box3.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
+			ellipse(dstimg, box_msg3.box4.center, box_msg3.box4.size, box_msg3.box4.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
+			ellipse(dstimg, box_msg3.box5.center, box_msg3.box5.size, box_msg3.box5.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
+			string logPath = camLogger.getLogPath();
+			string circleimg = logPath + to_string(camLogger.getImgId()) + "\\circleImg.jpg";
+			imwrite(circleimg, dstimg);
+		}
+	}
+
  	if (box_msg3.flag == false)  // 没有检测到圆，什么也不干
 	{
 		currentPos.clear();
@@ -1245,6 +1324,8 @@ void cameraDevice::setGlobalParam()
 
 		if (leftstr == "logEnable")
 			logEnable = atoi(rightstr.c_str());
+		else if (leftstr == "LogIntermedia")
+			LogIntermedia = atoi(rightstr.c_str());  // 1: only log input image, 2: log all information
 	}
 }
 
@@ -1298,19 +1379,18 @@ void cameraDevice::setLogger(string camIp)
 logger::logger()
 {
 	logPath = "..\\log\\";
+	camImgId = 0;
 }
 
-void logger::doLog()
+void logger::doLog(string msg)
 {
 	ofstream fin(logFile);
-	fin << "line：" << __LINE__ << "fun：" << __FUNCTION__;
+	fin << "line：" << __LINE__ << "fun：" << __FUNCTION__ << ": message" << msg ;
 }
 
 void logger::setLogPath(string camIp)
 {
-	time_t now_time;
-	now_time = time(NULL);
-	logPath.append(camIp).append("\\").append(to_string(now_time));
+	logPath.append(camIp);
 	logFile.append(logPath).append("\\trace.log");
 }
 string logger::getLogPath()

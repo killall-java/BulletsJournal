@@ -97,13 +97,20 @@ struct defctParam {
 class logger {
 public:
 	logger();
-	void doLog();
+	void doLog(string msg);
 	void setLogPath(string camIp);
 	string getLogPath();
+	int getImgId() {
+		return camImgId;
+	}
+	void setImgId() {
+		camImgId++;
+	}
 
 private:
 	string logPath;
 	string logFile;
+	int camImgId;
 };
 
 
@@ -142,6 +149,7 @@ private:
 	struct circlParam circlePrm;
 	struct defctParam defctPrm;
 	bool logEnable;
+	int LogIntermedia;
 	logger  camLogger;
 };
 
