@@ -1,2 +1,4 @@
+#logEnable和LogIntermedia同时为1，只保存原始图像
+#logEnable = 1和LogIntermedia = 2，会保存所有信息，包括原图，但影响速度
 logEnable=0
 LogIntermedia=0
