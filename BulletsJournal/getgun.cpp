@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "getgun.h"
+#include <io.h>
+#include <direct.h>
 
 
 fatherPapa instance;
@@ -1046,7 +1048,12 @@ void cameraDevice::calcGun(Mat src, char* camIp)
 		if (LogIntermedia == 1 || LogIntermedia == 2)
 		{
 			string logPath = camLogger.getLogPath();
+			string folderp = logPath + to_string(camLogger.getImgId());
 			string inputimg = logPath + to_string(camLogger.getImgId()) + "\\inputImg" + to_string(camLogger.getImgId()) + ".jpg";
+			if (access(folderp.c_str(), 6) == -1)
+			{
+				mkdir(folderp.c_str());
+			}
 			imwrite(inputimg, src);
 		}
 	}
@@ -1379,6 +1386,11 @@ void cameraDevice::setLogger(string camIp)
 logger::logger()
 {
 	logPath = "..\\log\\";
+	if (access(logPath.c_str(), 6) == -1)
+	{
+		mkdir(logPath.c_str());
+	}
+
 	camImgId = 0;
 }
 
