@@ -8,7 +8,7 @@
 //构造函数
 CameraStream::CameraStream(void)
 {
-	
+
 }
 //析构函数
 CameraStream::~CameraStream(void)
@@ -37,7 +37,8 @@ bool CameraStream::login(char* sDeviceAddress)
 	if (!this->isInit){
 		if (this->Init()){
 			cout << "------------ 初始化成功" << endl;
-		} else {
+		}
+		else {
 			cout << "------------ 初始化失败" << endl;
 			return false;
 		}
@@ -49,10 +50,12 @@ bool CameraStream::login(char* sDeviceAddress)
 		lUserID = NET_DVR_Login_V30(sDeviceAddress, 8000, "admin", "qazwsx12!@", &struDeviceInfo);
 		if (lUserID >= 0){
 			return true;
-		} else{
+		}
+		else{
 			return false;
 		}
-	} else {
+	}
+	else {
 		return true;
 	}
 }
@@ -64,9 +67,9 @@ int CameraStream::start(void(CALLBACK *g_RealDataCallBack_V30)(LONG lPlayHandle,
 	if (!login(sDeviceAddress)){
 		return -1;
 	}
-    // https://blog.csdn.net/hust_bochu_xuchao/article/details/53610588
-	
-	
+	// https://blog.csdn.net/hust_bochu_xuchao/article/details/53610588
+
+
 	//启动预览并设置回调数据流
 	NET_DVR_PREVIEWINFO struPlayInfo = { 0 };
 	struPlayInfo.hPlayWnd = hPlayWnd; //窗口为空，设备SDK不解码只取流
@@ -77,34 +80,70 @@ int CameraStream::start(void(CALLBACK *g_RealDataCallBack_V30)(LONG lPlayHandle,
 
 	// 第一次预览设置帧率
 	if (isFirstPreview){
+		bool configCameraFlag = false;
 		int Ret;
-		NET_DVR_COMPRESSIONCFG_V30  struParams = { 0 };
+		/**
+		*设置图像压缩参数
+		*/
+		NET_DVR_COMPRESSIONCFG_V30 compressionCfgV30 = { 0 };
 		DWORD dwReturnLen;
-		Ret = NET_DVR_GetDVRConfig(lUserID, NET_DVR_GET_COMPRESSCFG_V30, struPlayInfo.lChannel, &struParams, sizeof(NET_DVR_COMPRESSIONCFG_V30), &dwReturnLen);
+		Ret = NET_DVR_GetDVRConfig(lUserID, NET_DVR_GET_COMPRESSCFG_V30, struPlayInfo.lChannel, &compressionCfgV30, sizeof(NET_DVR_COMPRESSIONCFG_V30), &dwReturnLen);
+		compressionCfgV30.struNormHighRecordPara.dwVideoFrameRate = 5; // 设置帧率
+		configCameraFlag = NET_DVR_SetDVRConfig(lUserID, NET_DVR_SET_COMPRESSCFG_V30, struPlayInfo.lChannel, &compressionCfgV30, sizeof(NET_DVR_COMPRESSIONCFG_V30));
 
-		// 设置帧率
-		struParams.struNormHighRecordPara.dwVideoFrameRate = 5;
-		bool SetCamera;
-		SetCamera = NET_DVR_SetDVRConfig(lUserID, NET_DVR_SET_COMPRESSCFG_V30, struPlayInfo.lChannel, &struParams, sizeof(NET_DVR_COMPRESSIONCFG_V30));
-		if (!SetCamera) {
+		/**
+		*设置图像前端参数
+		*/
+		NET_DVR_CAMERAPARAMCFG_EX  cameraParamCfg_ex = { 0 };
+		DWORD dwCameraParamCfgReturnLen;
+		Ret = NET_DVR_GetDVRConfig(lUserID, NET_DVR_GET_CCDPARAMCFG_EX, struPlayInfo.lChannel, &cameraParamCfg_ex, sizeof(NET_DVR_CAMERAPARAMCFG_EX), &dwCameraParamCfgReturnLen);
+
+		cameraParamCfg_ex.struWdr.byWDREnabled = 1;// 宽动态：0 dsibale  1 enable 2 auto 
+		cameraParamCfg_ex.struWdr.byWDRContrastLevel = 90; // 0-100
+		cameraParamCfg_ex.struWdr.byWDRLevel1 = 0xF;
+		cameraParamCfg_ex.struWdr.byWDRLevel2 = 0xF;
+
+		cameraParamCfg_ex.struNoiseRemove.byDigitalNoiseRemoveEnable = 2; // 0-不启用，1-普通模式数字降噪，2-专家模式数字降噪
+		cameraParamCfg_ex.struNoiseRemove.bySpectralLevel = 100;       //专家模式下空域强度：0-100
+		cameraParamCfg_ex.struNoiseRemove.byTemporalLevel = 100;   //专家模式下时域强度：0-100
+
+		/*0-手动白平衡（MWB）,1-自动白平衡1（AWB1）,2-自动白平衡2 (AWB2),3-自动控制改名为锁定白平衡(Locked WB)，
+		4-室外(Indoor)，5-室内(Outdoor)6-日光灯(Fluorescent Lamp)，7-钠灯(Sodium Lamp)，
+		8-自动跟踪(Auto-Track)9-一次白平衡(One Push)，10-室外自动(Auto-Outdoor)，
+		11-钠灯自动 (Auto-Sodiumlight)，12-水银灯(Mercury Lamp)，13-自动白平衡(Auto)，*/
+		cameraParamCfg_ex.struWhiteBalance.byWhiteBalanceMode = 1;
+
+		cameraParamCfg_ex.struExposure.dwVideoExposureSet = 20000; //自定义视频曝光时间（单位us）*//*注:自动曝光时该值为曝光最慢值 新增20-1s(1000000us)
+
+		//configCameraFlag = false;
+		//configCameraFlag = NET_DVR_SetDVRConfig(lUserID, NET_DVR_SET_CCDPARAMCFG_EX, struPlayInfo.lChannel, &cameraParamCfg_ex, sizeof(NET_DVR_CAMERAPARAMCFG_EX));
+		/*调整5秒后切换成锁定白平衡*/
+		//Sleep(5 * 1000);
+		cameraParamCfg_ex.struWhiteBalance.byWhiteBalanceMode = 3;
+		//configCameraFlag = NET_DVR_SetDVRConfig(lUserID, NET_DVR_SET_CCDPARAMCFG_EX, struPlayInfo.lChannel, &cameraParamCfg_ex, sizeof(NET_DVR_CAMERAPARAMCFG_EX));
+
+		if (!configCameraFlag) {
+			TRACE(" ----------------------------------------------SetCamera error! \n");
 			return -3;
 		}
+
 		isFirstPreview = false;
 	}
 
 	if (realPlayHandler < 0){
 		realPlayHandler = NET_DVR_RealPlay_V40(lUserID, &struPlayInfo, g_RealDataCallBack_V30, NULL);
-	} else {
+	}
+	else {
 		return -3;
 	}
-	
+
 	return 0;
 }
 int CameraStream::stop(LONG &nPort){
 	// TODU
-	
+
 	//停止预览
-	if ( !NET_DVR_StopRealPlay(realPlayHandler) )
+	if (!NET_DVR_StopRealPlay(realPlayHandler))
 	{
 		NET_DVR_GetLastError();
 		return -4;
@@ -115,7 +154,7 @@ int CameraStream::stop(LONG &nPort){
 	{
 		/*if (!PlayM4_StopSound())
 		{
-			PlayM4_GetLastError(Port);
+		PlayM4_GetLastError(Port);
 		}*/
 		if (!PlayM4_Stop(nPort))
 		{
@@ -134,7 +173,7 @@ int CameraStream::stop(LONG &nPort){
 		Port = -1;
 		nPort = -1;
 	}
-	if ( !NET_DVR_Logout(lUserID) ){
+	if (!NET_DVR_Logout(lUserID)){
 		NET_DVR_GetLastError();
 		return -8;
 	}

@@ -53,11 +53,22 @@ struct ChannelInfo{
 	// 当前状态
 	string status = "";
 
+	/*
+	QUEQUE_PUSH_INTERVAL:COUNTER_MAX=1:* 每帧都入队（1帧入队1帧）
+	QUEQUE_PUSH_INTERVAL:COUNTER_MAX=2:24 每24帧入队12帧（2帧入队1帧）
+	QUEQUE_PUSH_INTERVAL:COUNTER_MAX=3:24 每24帧入队8帧（3帧入队1帧）
+	QUEQUE_PUSH_INTERVAL:COUNTER_MAX=4:24 每24帧入队6帧（4帧入队1帧）
+	QUEQUE_PUSH_INTERVAL:COUNTER_MAX=5/6:24 每24帧入队4帧（6帧入队1帧）
+	QUEQUE_PUSH_INTERVAL:COUNTER_MAX=7/8:24 每24帧入队3帧（8帧入队1帧）
+	QUEQUE_PUSH_INTERVAL:COUNTER_MAX=9/10/11/12:24 每24帧入队2帧（12帧入队1帧）
+	QUEQUE_PUSH_INTERVAL:COUNTER_MAX=13-24:24 每24帧入队1帧
+	QUEQUE_PUSH_INTERVAL:COUNTER_MAX=25-*:24 不入队，做好cpu占用很高的准备<_>
+	*/
 	int samplingCounter = 1;
+	
+	int QUEQUE_PUSH_INTERVAL = 3;
 
-	int quequePushInterval = 3;
-
-	int COUNTER_MAX = 10;
+	int COUNTER_MAX = 24;
 
 } ChannelInfo1, ChannelInfo2, ChannelInfo3, ChannelInfo4, ChannelInfo5;
 
@@ -108,7 +119,7 @@ static bool g_postData(cv::Mat mat, std::string ip, int goal, int cnt, std::stri
 	try {
 		std::vector<int> param = std::vector<int>(2);
 		param[0] = CV_IMWRITE_JPEG_QUALITY;
-		param[1] = 95;
+		param[1] = 100; // 设置图像压缩传输质量
 		cv::imencode(".jpg", mat, data_encode, param);
 
 	}
@@ -192,7 +203,7 @@ void CALLBACK g_decCBFun_1(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 	// 10 秒
 	if (ChannelInfo1.samplingCounter > ChannelInfo1.COUNTER_MAX){
 		ChannelInfo1.samplingCounter = 1;
-	} else if (ChannelInfo1.samplingCounter % ChannelInfo1.quequePushInterval == 0){
+	} else if (ChannelInfo1.samplingCounter % ChannelInfo1.QUEQUE_PUSH_INTERVAL == 0){
 		ChannelInfo1.samplingCounter++;
 		if (pFrameInfo->nType == T_YV12)
 		{
@@ -310,7 +321,7 @@ void CALLBACK g_decCBFun_2(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 	// 10 秒
 	if (ChannelInfo2.samplingCounter > ChannelInfo2.COUNTER_MAX){
 		ChannelInfo2.samplingCounter = 1;
-	} else if (ChannelInfo2.samplingCounter % ChannelInfo2.quequePushInterval == 0){
+	} else if (ChannelInfo2.samplingCounter % ChannelInfo2.QUEQUE_PUSH_INTERVAL == 0){
 		ChannelInfo2.samplingCounter++;
 		if (pFrameInfo->nType == T_YV12)
 		{
@@ -464,7 +475,7 @@ void CALLBACK g_decCBFun_3(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 	// 10 秒
 	if (ChannelInfo3.samplingCounter > ChannelInfo3.COUNTER_MAX){
 		ChannelInfo3.samplingCounter = 1;
-	} else if (ChannelInfo3.samplingCounter % ChannelInfo3.quequePushInterval == 0){
+	} else if (ChannelInfo3.samplingCounter % ChannelInfo3.QUEQUE_PUSH_INTERVAL == 0){
 		ChannelInfo3.samplingCounter++;
 		if (pFrameInfo->nType == T_YV12)
 		{
@@ -581,7 +592,7 @@ void CALLBACK g_decCBFun_4(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 	// 10 秒
 	if (ChannelInfo4.samplingCounter > ChannelInfo4.COUNTER_MAX){
 		ChannelInfo4.samplingCounter = 1;
-	} else if (ChannelInfo4.samplingCounter % ChannelInfo4.quequePushInterval == 0){
+	} else if (ChannelInfo4.samplingCounter % ChannelInfo4.QUEQUE_PUSH_INTERVAL == 0){
 		ChannelInfo4.samplingCounter++;
 		if (pFrameInfo->nType == T_YV12)
 		{
@@ -699,7 +710,7 @@ void CALLBACK g_decCBFun_5(long nPort, char* pBuf, long nSize, FRAME_INFO* pFram
 	// 10 秒
 	if (ChannelInfo5.samplingCounter > ChannelInfo5.COUNTER_MAX){
 		ChannelInfo5.samplingCounter = 1;
-	} else if (ChannelInfo5.samplingCounter % ChannelInfo5.quequePushInterval == 0){
+	} else if (ChannelInfo5.samplingCounter % ChannelInfo5.QUEQUE_PUSH_INTERVAL == 0){
 		ChannelInfo5.samplingCounter++;
 		if (pFrameInfo->nType == T_YV12)
 		{
@@ -963,7 +974,7 @@ BOOL CBulletsJournalDlg::OnInitDialog()
 	m_deviceIp3.SetAddress(192, 168, 1, 101);
 	m_deviceIp4.SetAddress(192, 168, 1, 102);
 	m_deviceIp5.SetAddress(192, 168, 1, 64);
-	m_WebServerIp.SetAddress(192, 168, 1, 3);
+	m_WebServerIp.SetAddress(192, 168, 1, 6);
 
 	// 将opencv imshow绑定到MFC pictrue control控件
 	namedWindow("IPCamera1", 0);

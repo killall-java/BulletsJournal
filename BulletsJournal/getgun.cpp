@@ -2,7 +2,7 @@
 #include "getgun.h"
 #include <io.h>
 #include <direct.h>
-
+#pragma warning(disable: 4996)
 
 fatherPapa instance;
 
