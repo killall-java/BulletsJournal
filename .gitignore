@@ -4,3 +4,5 @@ x64
 ipch
 .hgignore
 opencv_vc12_x64
+BulletsJournal.v12.suo
+cfg
