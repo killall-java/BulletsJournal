@@ -4,3 +4,4 @@ x64
 ipch
 .hgignore
 opencv_vc12_x64
+cfg
