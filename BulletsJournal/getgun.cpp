@@ -604,40 +604,36 @@ Mat cameraDevice::getDiffImg(Mat& thirdImg, Mat& firstImg, Circle_msg& box_msg3,
 	return diffRoi;
 }
 
+static float distanceSrc(float x_avg, float a_avg)
+{
+    return 1 / (1 + (x_avg * 0.5) / ((a_avg - x_avg) * (a_avg - x_avg)));
+}
+
+static float greylevelSrc(float value, float max, float min)
+{
+    float src = 0.0f;
+
+    float x = (value - min) / (max - min);
+    src = 1 / (1 + exp(5 - 10 * x));
+
+    return src;
+}
+
 vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& firstImg, Circle_msg& box_msg3,
 	int offsetx, int offsety, int roiw, int roih)
 {
 	Mat grad_x, grad_y;
 	Mat abs_grad_x, abs_grad_y, dst;
-	/*
-	//求x方向梯度
-	Sobel(diffRoi, grad_x, CV_16S, 1, 0, 3, 1, 1, BORDER_DEFAULT);
-	//Scharr(diffRoi, grad_x, CV_16S, 1, 0, 1, 0);
-	convertScaleAbs(grad_x, abs_grad_x);
-	//求y方向梯度
-	Sobel(diffRoi, grad_y, CV_16S, 0, 1, 3, 1, 1, BORDER_DEFAULT);
-	//Scharr(diffRoi, grad_y, CV_16S, 0, 1, 1, 0);
-	convertScaleAbs(grad_y, abs_grad_y);
-	//合并梯度
-	addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, dst);
-
-	//int dilateSize = 3;
-	//Mat elementForDilate = getStructuringElement(MORPH_RECT, Size(dilateSize, dilateSize), Point(0, 0));
-	//dilate(diffimg, diffimg, elementForDilate);
-	//int erodeSize = defctPrm.erodeSize; // 3
-	//Mat elementForErode = getStructuringElement(MORPH_RECT, Size(erodeSize, erodeSize), Point(0, 0));
-	//erode(roi, roi, elementForErode);
-	*/
 	if (diffRoi.channels() != 1 || diffRoi.dims != 2) {
 		cv::cvtColor(diffRoi, diffRoi, CV_BGR2GRAY);
 	}
+
 	// 不能用OTSU
 	CvScalar mean, std_dev;
 	IplImage ipl;
 	ipl = IplImage(diffRoi);
 	cvAvgSdv(&ipl, &mean, &std_dev);
 
-	//threshold(diffRoi, dst, mean.val[0], 255, CV_THRESH_BINARY | CV_THRESH_OTSU); // 60,255,0
 	threshold(diffRoi, dst, mean.val[0] + 3 * std_dev.val[0], 255, CV_THRESH_BINARY); // 60,255,0
 
 	Mat elementForErode = getStructuringElement(MORPH_RECT, Size(3, 3), Point(0, 0));
@@ -652,14 +648,6 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 		imwrite(thresholdimg, dst);
 	}
 
-	/*
-	namedWindow("diffRoithrd", 0);
-	cvResizeWindow("diffRoithrd", 600, 500);
-	imshow("diffRoithrd", dst);
-	waitKey();
-	destroyWindow("diffRoithrd");
-	*/
-
 	// 此时，我们已经得到了较好的边缘图像，但是对于不同光照条件下，仍然会存在一些噪声点，这个时候，就用canny和sobel进一步过滤，得到真正的
 	// 弹孔
 	// 提取图中小的轮廓
@@ -668,131 +656,24 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 	//得到轮廓向量
 	Mat dstRoi = dst.clone();
 	findContours(dstRoi, contours, hierarchy, RETR_TREE, CV_CHAIN_APPROX_NONE, Point(0, 0));//检测轮廓，其中参数4：检测所有轮廓，参数5：仅保存拐点信息
-
-																							// get 第二幅图的roi edge
-	Mat firstRoiCanny;
-	Mat thirdRoiCanny;
-	firstRoiCanny = getRoiEdge(firstImg, box_msg3, offsetx, offsety, roiw, roih, 0);
 	if (logEnable && LogIntermedia == 2)
 	{
-		string logPath = camLogger.getLogPath();
-		string firstRoiCannyP = logPath + to_string(camLogger.getImgId()) + "\\firstRoiCanny.jpg";
-		imwrite(firstRoiCannyP, firstRoiCanny);
-	}
-	thirdRoiCanny = getRoiEdge(thirdImg, box_msg3, offsetx, offsety, roiw, roih, 0);
-	if (logEnable && LogIntermedia == 2)
-	{
-		string logPath = camLogger.getLogPath();
-		string thirdRoiCannyP = logPath + to_string(camLogger.getImgId()) + "\\thirdRoiCanny.jpg";
-		imwrite(thirdRoiCannyP, thirdRoiCanny);
-	}
-	//**************************************************
-	// 找小圆
-	cv::vector< cv::vector<Point> > contoursThird, contoursFirst;
-	cv::vector< cv::Vec4i > hierarchyThird, hierarchyFirst;
-	Mat thirdRoiCannyTemp = thirdRoiCanny.clone();
-	Mat firstRoiCannyTemp = firstRoiCanny.clone();
-	findContours(thirdRoiCannyTemp, contoursThird, hierarchyThird, RETR_TREE, CV_CHAIN_APPROX_NONE, Point(0, 0));//检测轮廓，其中参数4：检测所有轮廓，参数5：仅保存拐点信息
-	findContours(firstRoiCannyTemp, contoursFirst, hierarchyFirst, RETR_TREE, CV_CHAIN_APPROX_NONE, Point(0, 0));//检测轮廓，其中参数4：检测所有轮廓，参数5：仅保存拐点信息
-
-																												 // filter large 
-	cv::vector< cv::vector<Point> >::iterator iterT, iterF;
-	cv::vector< cv::Vec4i >::iterator iterHT, iterHF;
-	vector< Rect > cannyRectThird, cannyRectFirst;
-	for (iterT = contoursThird.begin(), iterHT = hierarchyThird.begin(); iterT != contoursThird.end(), iterHT != hierarchyThird.end();)
-	{
-		Rect boxT;
-		boxT = boundingRect(Mat(*iterT));
-		if ((float)boxT.width >= (float)(box_msg3.box1.size.width / 3) ||
-			(float)boxT.height >= (float)(box_msg3.box1.size.height / 3) ||
-			(float)(boxT.width / boxT.height) > 2 ||
-			(float)(boxT.height / boxT.width) > 2 ||
-			(boxT.width < 3 && boxT.height < 3) ||
-			boxT.x < (int)(box_msg3.box1.size.width / 2) ||  // 靠近边缘的都不是弹孔
-			boxT.y < (int)(box_msg3.box1.size.height / 2) ||
-			boxT.x + boxT.width + (int)(box_msg3.box1.size.width / 2) > roiw ||
-			boxT.y + boxT.height + (int)(box_msg3.box1.size.height / 2) > roih) //  
+		Mat drawMt = thirdImg(Rect(offsetx, offsety, roiw, roih)).clone();
+		for (int i = 0; i < contours.size(); i++)
 		{
-			iterT = contoursThird.erase(iterT);
-			iterHT = hierarchyThird.erase(iterHT);
-		}
-		else {
-			cannyRectThird.push_back(boxT);
-			iterT++;
-			iterHT++;
-		}
-	}
-
-	// filter large 
-	for (iterF = contoursFirst.begin(), iterHF = hierarchyFirst.begin(); iterF != contoursFirst.end(), iterHF != hierarchyFirst.end();)
-	{
-		Rect boxT;
-		boxT = boundingRect(Mat(*iterF));
-		if ((float)boxT.width >= (float)(box_msg3.box1.size.width / 4) ||
-			(float)boxT.height >= (float)(box_msg3.box1.size.height / 4) ||
-			(boxT.width < 3 && boxT.height < 3) ||
-			(float)(boxT.width / boxT.height) > 2 ||
-			(float)(boxT.height / boxT.width) > 2 ||
-			boxT.x < (int)(box_msg3.box1.size.width / 2) ||  // 靠近边缘的都不是弹孔
-			boxT.y < (int)(box_msg3.box1.size.height / 2) ||
-			boxT.x + boxT.width + (int)(box_msg3.box1.size.width / 2) > roiw ||
-			boxT.y + boxT.height + (int)(box_msg3.box1.size.height / 2) > roih) // 
-		{
-			iterF = contoursFirst.erase(iterF);
-			iterHF = hierarchyFirst.erase(iterHF);
-		}
-		else {
-			cannyRectFirst.push_back(boxT);
-			iterF++;
-			iterHF++;
-		}
-	}
-
-	// get final filter points
-	vector< Rect > cannyRectFinal;
-	for (int i = 0; i < cannyRectThird.size(); i++)
-	{
-		// get cent point
-		Point2f firstRectC, thirdRectC;
-		thirdRectC.x = (float)(cannyRectThird[i].x + 0.5 * cannyRectThird[i].width);
-		thirdRectC.y = (float)(cannyRectThird[i].y + 0.5 * cannyRectThird[i].height);
-		bool ifThirdNotInFirst = true;
-		for (int j = 0; j < cannyRectFirst.size(); j++)
-		{
-			firstRectC.x = (float)(cannyRectFirst[j].x + 0.5 * cannyRectFirst[j].width);
-			firstRectC.y = (float)(cannyRectFirst[j].y + 0.5 * cannyRectFirst[j].height);
-
-			if (fabs(firstRectC.x - thirdRectC.x) <  0.35 * cannyRectThird[i].width &&
-				fabs(firstRectC.y - thirdRectC.y) < 0.35 * cannyRectThird[i].height)
-			{
-				ifThirdNotInFirst = false;
-				break;
-			}
-		}
-		if (ifThirdNotInFirst)
-		{
-			cannyRectFinal.push_back(cannyRectThird[i]);
-		}
-	}
-
-	if (logEnable && LogIntermedia == 2)
-	{
-		Mat drawMt1 = thirdImg(Rect(offsetx, offsety, roiw, roih)).clone();
-		for (int i = 0; i < cannyRectFinal.size(); i++)
-		{
+			Rect boxT;
+			boxT = boundingRect(Mat(contours[i]));
 			Point p1, p2;
-			p1.x = cannyRectFinal[i].x - 2;
-			p1.y = cannyRectFinal[i].y - 2;
-			p2.x = cannyRectFinal[i].x + cannyRectFinal[i].width + 4;
-			p2.y = cannyRectFinal[i].y + cannyRectFinal[i].height + 4;
-			rectangle(drawMt1, p1, p2, Scalar(255, 255, 255), 1, 8, 0);
+			p1.x = boxT.x;
+			p1.y = boxT.y;
+			p2.x = boxT.x + boxT.width;
+			p2.y = boxT.y + boxT.height;
+			rectangle(drawMt, p1, p2, Scalar(255, 255, 255), 1, 8, 0);
 		}
 		string logPath = camLogger.getLogPath();
-		string cannyCandit = logPath + to_string(camLogger.getImgId()) + "\\cannyCandit.jpg";
-		imwrite(cannyCandit, drawMt1);
+		string cannyCandit = logPath + to_string(camLogger.getImgId()) + "\\allconuters.jpg";
+		imwrite(cannyCandit, drawMt);
 	}
-
-	///********************************************
 
 	Mat thirdImgRoi = thirdImg(Rect(offsetx, offsety, roiw, roih)).clone();
 	if (logEnable && LogIntermedia == 2)
@@ -809,7 +690,6 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 		imwrite(firstImgRoiP, firstImgRoi);
 	}
 	vector<Rect> allHole;
-
 	vector<Rect> gunTemp;
 	// 得到当前这一枪真正的弹孔图
 	for (int i = 0; i < contours.size(); i++)
@@ -819,7 +699,7 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 		boxT = boundingRect(Mat(contours[i]));
 		if (((float)(boxT.width / boxT.height) >= 2 ||
 			(float)(boxT.height / boxT.width) >= 2) ||
-			(boxT.width < 4 && boxT.height < 4) ||
+			(boxT.width < 5 && boxT.height < 5) ||
 			boxT.x < (int)(box_msg3.box1.size.width / 2) ||  // 靠近边缘的都不是弹孔
 			boxT.y < (int)(box_msg3.box1.size.height / 2) ||
 			boxT.x + boxT.width + (int)(box_msg3.box1.size.width / 2) > roiw ||
@@ -839,57 +719,44 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 	if (gunTemp.size() == 0)
 		return allHole;
 
-	// 合并离的很近的区域, 就这样把，看着舒服
-	for (int i = 0; i < (gunTemp.size() - 1); i++)
-	{
-		for (int j = i + 1; j < gunTemp.size(); j++)
-		{
-			if (gunTemp[j].x != 0 && gunTemp[j].y != 0)
-			{
-				Point firstCent, secdCent;
-				firstCent.x = gunTemp[i].x + (int)(gunTemp[i].width / 2);
-				firstCent.y = gunTemp[i].y + (int)(gunTemp[i].height / 2);
-				secdCent.x = gunTemp[j].x + (int)(gunTemp[j].width / 2);
-				secdCent.y = gunTemp[j].y + (int)(gunTemp[j].height / 2);
-				Size distn;
-				distn.width = (int)(gunTemp[i].width / 2 + gunTemp[j].width / 2);
-				distn.height = (int)(gunTemp[i].height / 2 + gunTemp[j].height / 2);
-				if (abs(abs(firstCent.x - secdCent.x) - distn.width) < 3 &&
-					abs(abs(firstCent.y - secdCent.y) - distn.height) < 3)
-				{
-					gunTemp[i].width = max(gunTemp[i].x + gunTemp[i].width, gunTemp[j].x + gunTemp[j].width) - min(gunTemp[i].x, gunTemp[j].x);
-					gunTemp[i].height = max(gunTemp[i].y + gunTemp[i].height, gunTemp[j].y + gunTemp[j].height) - min(gunTemp[i].y, gunTemp[j].y);
-					gunTemp[i].x = min(gunTemp[i].x, gunTemp[j].x);
-					gunTemp[i].y = min(gunTemp[i].y, gunTemp[j].y);
-					gunTemp[j].x = 0;
-					gunTemp[j].y = 0;
-				}
-			}
-		}
-	}
 	if (logEnable && LogIntermedia == 2)
 	{
 		Mat drawMt2 = thirdImg(Rect(offsetx, offsety, roiw, roih)).clone();
 		for (int i = 0; i < gunTemp.size(); i++)
 		{
 			Point p1, p2;
-			p1.x = gunTemp[i].x - 2;
-			p1.y = gunTemp[i].y - 2;
-			p2.x = gunTemp[i].x + gunTemp[i].width + 4;
-			p2.y = gunTemp[i].y + gunTemp[i].height + 4;
-			rectangle(drawMt2, p1, p2, Scalar(0, 0, 0), 1, 8, 0);
+			p1.x = gunTemp[i].x;
+			p1.y = gunTemp[i].y;
+			p2.x = gunTemp[i].x + gunTemp[i].width;
+			p2.y = gunTemp[i].y + gunTemp[i].height;
+			rectangle(drawMt2, p1, p2, Scalar(255, 255, 255), 1, 8, 0);
 		}
 		string logPath = camLogger.getLogPath();
 		string gunCandit = logPath + to_string(camLogger.getImgId()) + "\\gunCandit.jpg";
 		imwrite(gunCandit, drawMt2);
 	}
-	/*
-	namedWindow("before-final", 0);
-	cvResizeWindow("before-final", 600, 500);
-	imshow("before-final", dst);
-	waitKey();
-	destroyWindow("before-final");
-	*/
+
+	// pre-process orgin image, and do dil
+	if (thirdImgRoi.channels() != 1)
+		cv::cvtColor(thirdImgRoi, thirdImgRoi, CV_BGR2GRAY);
+
+	if (firstImgRoi.channels() != 1)
+		cv::cvtColor(firstImgRoi, firstImgRoi, CV_BGR2GRAY);
+//////////////////////////////////////
+    CvScalar meanImgThrdPreExd, std_devImgThrdPreExd;
+    IplImage iplImgThrdPreExd = IplImage(thirdImgRoi(Rect(box_msg3.box1.center.x - box_msg3.box1.size.width, box_msg3.box1.center.y, box_msg3.box1.size.width, box_msg3.box1.size.height)));
+    cvAvgSdv(&iplImgThrdPreExd, &meanImgThrdPreExd, &std_devImgThrdPreExd);
+/////////////////////////////////
+   // namedWindow("before-final", 0);
+   // cvResizeWindow("before-final", 600, 500);
+   // imshow("before-final", dst);
+   // waitKey();
+   // destroyWindow("before-final");
+
+	float currentSrc = 0.0f;
+	float maxSrc = 0.0f;
+	Rect maxRect;
+	maxRect.x = 0; maxRect.y = 0; maxRect.width = 0; maxRect.height = 0;
 	for (int i = 0; i < gunTemp.size(); i++)
 	{
 		Rect boxT = gunTemp[i];
@@ -897,70 +764,186 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 		Point2f centT;
 		centT.x = (float)(boxT.x + 0.5f * boxT.width);
 		centT.y = (float)(boxT.y + 0.5f * boxT.height);
+
 		if ((boxT.x != 0 && boxT.y != 0) &&
 			((float)(boxT.width / boxT.height) < 2 && (float)(boxT.height / boxT.width) < 2))
 		{
-			// also in cannyRectFinal
-			bool thisRectInCannyRect = false;
-			for (int ii = 0; ii < cannyRectFinal.size(); ii++)
+			// 根据弹孔的位置来选择合适的算法
+			// 中间的圆内
+			if (sqrtf((centT.x - (box_msg3.box1.center.x - offsetx)) * (centT.x - (box_msg3.box1.center.x - offsetx)) +
+				(centT.y - (box_msg3.box1.center.y - offsety)) * (centT.y - (box_msg3.box1.center.y - offsety))) < max(box_msg3.box1.size.width / 2, box_msg3.box1.size.height / 2))
 			{
-				Point2f cannyCentT;
-				cannyCentT.x = (float)(cannyRectFinal[ii].x + 0.5f * cannyRectFinal[ii].width);
-				cannyCentT.y = (float)(cannyRectFinal[ii].y + 0.5f * cannyRectFinal[ii].height);
-				float cannyBoxTArea = (float)(cannyRectFinal[ii].width * cannyRectFinal[ii].height);
-				if (fabs(centT.x - cannyCentT.x) < 0.6 * boxT.width &&
-					fabs(centT.y - cannyCentT.y) < 0.6 * boxT.height)
-				{
-					thisRectInCannyRect = true;
-				}
+				// 在 sobel和canny图中对应位置，看看是否为弹孔
+				Mat imgMMthird = thirdImgRoi(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
+                Mat imgMMthirdExd = thirdImgRoi(Rect(boxT.x - 3, boxT.y - 3, boxT.width + 6, boxT.height + 6));
+                
+				// 图像roi的均值和方差
+                CvScalar meanImgthird, sdvthird;
+                CvScalar meanImgthirdExd, sdvthirdExd;
+                IplImage thirdTemplat = IplImage(imgMMthird);
+                cvAvgSdv(&thirdTemplat, &meanImgthird, &sdvthird);
+                IplImage thirdTemplatExd = IplImage(imgMMthirdExd);
+                cvAvgSdv(&thirdTemplatExd, &meanImgthirdExd, &sdvthirdExd);
+                // 计算黑色点的个数
+                int totalNum = imgMMthird.rows * imgMMthird.cols;
+                int blackNumT = 0;
+                float realmeanT = 0;
+                /////////////////////////////////////////////////////////
+                for (int i = 0; i < imgMMthird.rows; i++)
+                {
+                    uchar* prowData = imgMMthird.ptr<uchar>(i);
+                    for (int j = 0; j < imgMMthird.cols; j++)
+                    {
+                        if (prowData[j] < meanImgthird.val[0] - 8)
+                        {
+                            realmeanT += prowData[j];
+                            blackNumT++;
+                        }
+                    }
+                }
+                //////////////////////////////////////////////////////////
+                if (float(blackNumT) / float(totalNum) > 0.2)
+                {
+                    float x_avgT = realmeanT / blackNumT;
+                    float a_avgT = (meanImgthirdExd.val[0] * (boxT.width + 6) * (boxT.height + 6) - meanImgthird.val[0] * boxT.width * boxT.height) / ((boxT.width + 6) * (boxT.height + 6) - boxT.width * boxT.height);
+
+                    if (distanceSrc(x_avgT, a_avgT) > 0.6)// &&
+                        //distanceSrc(x_avgF, a_avgF) < 0.4)
+                    {
+                        allHole.push_back(boxT);
+                    }
+                    else {
+                        if (logEnable && LogIntermedia == 2)
+                        {
+                            Mat mm = dst(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
+                            mm = { Scalar(0,0,0) };
+                        }
+                    }
+                }
+                else {
+                    if (logEnable && LogIntermedia == 2)
+                    {
+                        Mat mm = dst(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
+                        mm = { Scalar(0,0,0) };
+                    }
+                }
 			}
-
-			// 在 sobel和canny图中对应位置，看看是否为弹孔
-			Mat imgMMthird = thirdImgRoi(Rect(boxT.x + 1, boxT.y + 1, boxT.width - 2, boxT.height - 2));
-			Mat imgMMfirst = firstImgRoi(Rect(boxT.x + 1, boxT.y + 1, boxT.width - 2, boxT.height - 2));
-			Mat imgMMthirdExd = thirdImgRoi(Rect(boxT.x - 2, boxT.y - 2, boxT.width + 4, boxT.height + 4));
-			Mat imgMMfirstExd = firstImgRoi(Rect(boxT.x - 2, boxT.y - 2, boxT.width + 4, boxT.height + 4));
-
-			// 图像roi的均值和方差
-			CvScalar meanImgfirst, std_devImgfirst;
-			IplImage iplImgfirst;
-			iplImgfirst = IplImage(imgMMfirst);
-			cvAvgSdv(&iplImgfirst, &meanImgfirst, &std_devImgfirst);
-
-			CvScalar meanImgthird, std_devImgthird;
-			IplImage iplImgthird;
-			iplImgthird = IplImage(imgMMthird);
-			cvAvgSdv(&iplImgthird, &meanImgthird, &std_devImgthird);
-
-			CvScalar meanImgfirstExd, std_devImgfirstExd;
-			IplImage iplImgfirstExd;
-			iplImgfirstExd = IplImage(imgMMfirstExd);
-			cvAvgSdv(&iplImgfirstExd, &meanImgfirstExd, &std_devImgfirstExd);
-
-			CvScalar meanImgthirdExd, std_devImgthirdExd;
-			IplImage iplImgthirdExd;
-			iplImgthirdExd = IplImage(imgMMthirdExd);
-			cvAvgSdv(&iplImgthirdExd, &meanImgthirdExd, &std_devImgthirdExd);
-
-			// 根据以上信息进行过滤， 基本上可以得到最终的弹孔， 保存弹孔信息
-			float meanImgthirdExdVal = 0, meanImgfirstExdVal = 0;
-			meanImgthirdExdVal = (meanImgthirdExd.val[0] * (boxT.width + 6) * (boxT.height + 6) -
-				meanImgthird.val[0] * boxT.width * boxT.height) / ((boxT.width + 6) * (boxT.height + 6) - boxT.width * boxT.height);
-			meanImgfirstExdVal = (meanImgfirstExd.val[0] * (boxT.width + 6) * (boxT.height + 6) -
-				meanImgfirst.val[0] * boxT.width * boxT.height) / ((boxT.width + 6) * (boxT.height + 6) - boxT.width * boxT.height);
-
-			if (meanImgthirdExdVal > (meanImgthird.val[0] + 1 * std_devImgthird.val[0]) &&
-				thisRectInCannyRect) //是弹孔
-			{
-				allHole.push_back(boxT);
-			}
-			else
-			{
-				if (logEnable && LogIntermedia == 2)
+			else if(fabs(centT.x - (box_msg3.box1.center.x - offsetx)) < box_msg3.box1.size.width &&
+				    (centT.y - (box_msg3.box1.center.y - offsety)) > 4 * box_msg3.box1.size.height) { // 靠近下边的
+			    if (logEnable && LogIntermedia == 2)
 				{
 					Mat mm = dst(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
 					mm = { Scalar(0,0,0) };
 				}
+			}
+			else {
+				// 在 sobel和canny图中对应位置，看看是否为弹孔
+				Mat imgMMthird = thirdImgRoi(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
+                Mat imgMMthirdExd = thirdImgRoi(Rect(boxT.x - 3, boxT.y - 3, boxT.width + 6, boxT.height + 6));
+
+                // 图像roi的均值和方差
+                CvScalar meanImgthird, sdvthird;
+                CvScalar meanImgthirdExd, sdvthirdExd;
+                IplImage thirdTemplat = IplImage(imgMMthird);
+                cvAvgSdv(&thirdTemplat, &meanImgthird, &sdvthird);
+                IplImage thirdTemplatExd = IplImage(imgMMthirdExd);
+                cvAvgSdv(&thirdTemplatExd, &meanImgthirdExd, &sdvthirdExd);
+                
+                CvScalar meanImgfirst, sdvfirst;
+                CvScalar meanImgfirstExd, sdvfirstExd;
+                Mat imgMMfirst = firstImgRoi(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
+                Mat imgMMfirstExd = firstImgRoi(Rect(boxT.x - 3, boxT.y - 3, boxT.width + 6, boxT.height + 6));
+                IplImage firstTemplat = IplImage(imgMMfirst);
+                cvAvgSdv(&firstTemplat, &meanImgfirst, &sdvfirst);
+                IplImage firstTemplatExd = IplImage(imgMMfirstExd);
+                cvAvgSdv(&firstTemplatExd, &meanImgfirstExd, &sdvfirstExd);
+
+                // 计算黑色点的个数
+                int totalNum = imgMMthird.rows * imgMMthird.cols;
+                /////////////////////////////////////////////////////////
+                int blackNumT = 0;
+                float maxValueT = 0., minValueT = 255.;
+                for (int i = 0; i < imgMMthird.rows; i++)
+                {
+                    uchar* prowData = imgMMthird.ptr<uchar>(i);
+                    for (int j = 0; j < imgMMthird.cols; j++)
+                    {
+                        if (prowData[j] < meanImgthird.val[0])
+                            blackNumT++;
+                        if (prowData[j] < minValueT)
+                            minValueT = prowData[j];
+                        if (prowData[j] > maxValueT)
+                            maxValueT = prowData[j];
+                    }
+                }
+                /////////////////////////////////////////////////////////
+                int blackNumF = 0;
+                float maxValueF = 0., minValueF = 255.;
+                for (int i = 0; i < imgMMfirst.rows; i++)
+                {
+                    uchar* prowData = imgMMfirst.ptr<uchar>(i);
+                    for (int j = 0; j < imgMMfirst.cols; j++)
+                    {
+                        if (prowData[j] < meanImgfirst.val[0])
+                            blackNumF++;
+                        if (prowData[j] < minValueF)
+                            minValueF = prowData[j];
+                        if (prowData[j] > maxValueF)
+                            maxValueF = prowData[j];
+                    }
+                }
+                //////////////////////////////////////////////////////////
+                if (meanImgthird.val[0] > meanImgThrdPreExd.val[0] + 1.5 * std_devImgThrdPreExd.val[0]) // not dan kong
+                {
+                    if (logEnable && LogIntermedia == 2)
+                    {
+                        Mat mm = dst(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
+                        mm = { Scalar(0,0,0) };
+                    }
+                }
+                else {
+                    if (float(blackNumT) / float(totalNum) > 0.2)
+                    {
+                        float x_avgF = meanImgfirst.val[0];
+                        float a_avgF = (meanImgfirstExd.val[0] * (boxT.width + 6) * (boxT.height + 6) - meanImgfirst.val[0] * boxT.width * boxT.height) / ((boxT.width + 6) * (boxT.height + 6) - boxT.width * boxT.height);
+                        float x_avgT = meanImgthird.val[0];
+                        float a_avgT = (meanImgthirdExd.val[0] * (boxT.width + 6) * (boxT.height + 6) - meanImgthird.val[0] * boxT.width * boxT.height) / ((boxT.width + 6) * (boxT.height + 6) - boxT.width * boxT.height);
+                        if (x_avgT > a_avgT + sdvthird.val[0])
+                        {
+                            if (logEnable && LogIntermedia == 2)
+                            {
+                                Mat mm = dst(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
+                                mm = { Scalar(0,0,0) };
+                            }
+                        }
+                        else {
+                            float thirdSrc  = greylevelSrc(x_avgT, meanImgThrdPreExd.val[0] + 0.5 * std_devImgThrdPreExd.val[0], meanImgThrdPreExd.val[0] + 1.5 * std_devImgThrdPreExd.val[0]);
+                            //float firstSrc1 = distanceSrc(x_avgT, a_avgT);
+                            //float firstSrc1 = greylevelSrc(x_avgF, meanImgFirstPreExd.val[0], meanImgFirstPreExd.val[0] - std_devImgFirstPreExd.val[0]);
+                            //float firstSrc2 = greylevelSrc(x_avgF, meanImgFirstPreExd.val[0], meanImgFirstPreExd.val[0] + std_devImgFirstPreExd.val[0]);
+
+                            if (thirdSrc > 0.6 )// && firstSrc1 > 0.6 && firstSrc2 > 0.6)
+                            {
+                                allHole.push_back(boxT);
+                            }
+                            else {
+                                if (logEnable && LogIntermedia == 2)
+                                {
+                                    Mat mm = dst(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
+                                    mm = { Scalar(0,0,0) };
+                                }
+                            }
+                        }
+
+                    }
+                    else {
+                        if (logEnable && LogIntermedia == 2)
+                        {
+                            Mat mm = dst(Rect(boxT.x, boxT.y, boxT.width, boxT.height));
+                            mm = { Scalar(0,0,0) };
+                        }
+                    }
+                }
 			}
 		}
 		else {
@@ -971,19 +954,29 @@ vector<Rect> cameraDevice::filterDiffRoi(Mat& diffRoi, Mat& thirdImg, Mat& first
 			}
 		}
 	}
-	/*
-	namedWindow("final", 0);
-	cvResizeWindow("final", 600, 500);
-	imshow("final", dst);
-	waitKey();
-	destroyWindow("final");
-	*/
+	
+	//namedWindow("final", 0);
+	//cvResizeWindow("final", 600, 500);
+	//imshow("final", dst);
+	//waitKey();
+	//destroyWindow("final");
 
 	if (logEnable && LogIntermedia == 2)
 	{
+		Mat drawMt3 = thirdImg(Rect(offsetx, offsety, roiw, roih)).clone();
+		for (int i = 0; i < allHole.size(); i++)
+		{
+			Point p1, p2;
+			p1.x = allHole[i].x;
+			p1.y = allHole[i].y;
+			p2.x = allHole[i].x + allHole[i].width;
+			p2.y = allHole[i].y + allHole[i].height;
+			rectangle(drawMt3, p1, p2, Scalar(255, 255, 255), 1, 8, 0);
+		}
+		//imshow("drawMt3", drawMt3);
 		string logPath = camLogger.getLogPath();
 		string finalFilteredImg = logPath + to_string(camLogger.getImgId()) + "\\finalFilteredImg.jpg";
-		imwrite(finalFilteredImg, dst);
+		imwrite(finalFilteredImg, drawMt3);
 	}
 
 	return allHole;
@@ -1159,11 +1152,11 @@ void cameraDevice::calcGun(Mat src, char* camIp)
 			Mat dstimg = thirdImg.clone();
 			int thickness = 2;
 			int lineType = 8;
-			ellipse(dstimg, box_msg3.box1.center, box_msg3.box1.size, box_msg3.box1.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
-			ellipse(dstimg, box_msg3.box2.center, box_msg3.box2.size, box_msg3.box2.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
-			ellipse(dstimg, box_msg3.box3.center, box_msg3.box3.size, box_msg3.box3.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
-			ellipse(dstimg, box_msg3.box4.center, box_msg3.box4.size, box_msg3.box4.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
-			ellipse(dstimg, box_msg3.box5.center, box_msg3.box5.size, box_msg3.box5.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
+			ellipse(dstimg, box_msg3.box1.center, Size(box_msg3.box1.size.width / 2, box_msg3.box1.size.height / 2), box_msg3.box1.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
+			ellipse(dstimg, box_msg3.box2.center, Size(box_msg3.box2.size.width / 2, box_msg3.box2.size.height / 2), box_msg3.box2.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
+			ellipse(dstimg, box_msg3.box3.center, Size(box_msg3.box3.size.width / 2, box_msg3.box3.size.height / 2), box_msg3.box3.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
+			ellipse(dstimg, box_msg3.box4.center, Size(box_msg3.box4.size.width / 2, box_msg3.box4.size.height / 2), box_msg3.box4.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
+			ellipse(dstimg, box_msg3.box5.center, Size(box_msg3.box5.size.width / 2, box_msg3.box5.size.height / 2), box_msg3.box5.angle, 0, 360, Scalar(255, 129, 0), thickness, lineType);
 			string logPath = camLogger.getLogPath();
 			string circleimg = logPath + to_string(camLogger.getImgId()) + "\\circleImg.jpg";
 			imwrite(circleimg, dstimg);
@@ -1204,16 +1197,16 @@ void cameraDevice::calcGun(Mat src, char* camIp)
 
 		Mat diffimgRoi;
 		int offsetx, offsety, roiw, roih;
-		offsetx = int(box_msg3.box1.center.x - (box_msg3.box1.size.width / 2) * 6);
+		offsetx = int(box_msg3.box1.center.x - (box_msg3.box1.size.width / 2) * 5);
 		if (offsetx < 0)
 			offsetx = 0;
-		offsety = int(box_msg3.box1.center.y - (box_msg3.box1.size.height / 2) * 6);
+		offsety = int(box_msg3.box1.center.y - (box_msg3.box1.size.height / 2) * 5.5);
 		if (offsety < 0)
 			offsety = 0;
-		roiw = int(box_msg3.box1.size.width * 6);
+		roiw = int(box_msg3.box1.size.width * 5.2);
 		if ((offsetx + roiw) > thirdImg.size().width)
 			roiw = thirdImg.size().width - offsetx - 1;
-		roih = int(box_msg3.box1.size.height * 6);
+		roih = int(box_msg3.box1.size.height * 5.2);
 		if ((offsety + roih) > thirdImg.size().height)
 			roih = thirdImg.size().height - offsety - 1;
 		// 分别得到 图像的diff, canny edge 的diff, sobel edge 的diff
