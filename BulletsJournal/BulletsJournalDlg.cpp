@@ -66,7 +66,7 @@ struct ChannelInfo{
 	*/
 	int samplingCounter = 1;
 	
-	int QUEQUE_PUSH_INTERVAL = 3;
+	int QUEQUE_PUSH_INTERVAL = 4;
 
 	int COUNTER_MAX = 24;
 
